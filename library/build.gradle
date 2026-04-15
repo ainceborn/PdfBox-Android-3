@@ -47,7 +47,7 @@ android {
     lint {
         abortOnError false
     }
-    namespace 'com.tom_roush.pdfbox'
+    namespace 'com.ainceborn.pdfbox'
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_11

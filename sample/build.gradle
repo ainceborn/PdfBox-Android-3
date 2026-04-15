@@ -4,7 +4,7 @@ android {
     compileSdkVersion Integer.parseInt(project.ANDROID_BUILD_SDK_VERSION)
 
     defaultConfig {
-        applicationId 'com.tom_roush.pdfbox.sample'
+        applicationId 'com.ainceborn.pdfbox.sample'
         minSdkVersion 26
         targetSdkVersion Integer.parseInt(project.ANDROID_BUILD_TARGET_SDK_VERSION)
         versionName project.VERSION_NAME
@@ -26,7 +26,7 @@ android {
     lint {
         abortOnError false
     }
-    namespace 'com.tom_roush.pdfbox.sample'
+    namespace 'com.ainceborn.pdfbox.sample'
 }
 
 dependencies {
