@@ -246,4 +246,30 @@ public final class IOUtils
 
         dest.addPath(tmp);
     }
+
+    public static String toStringCompat(ByteArrayOutputStream buffer, Charset charset) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            return buffer.toString(charset);
+        }
+        else return new String(buffer.toByteArray(), charset);
+    }
+
+    public static int compare(byte[] a, byte[] b) {
+        if (a == b) return 0;
+        if (a == null) return -1;
+        if (b == null) return 1;
+
+        int len = Math.min(a.length, b.length);
+
+        for (int i = 0; i < len; i++) {
+            int va = (a[i] & 0xFF);
+            int vb = (b[i] & 0xFF);
+
+            if (va != vb) {
+                return va - vb;
+            }
+        }
+
+        return a.length - b.length;
+    }
 }

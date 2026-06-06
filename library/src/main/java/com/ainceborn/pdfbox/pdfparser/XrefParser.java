@@ -46,11 +46,13 @@ public class XrefParser
     private static final char[] XREF_TABLE = { 'x', 'r', 'e', 'f' };
     private static final char[] STARTXREF = { 's', 't', 'a', 'r', 't', 'x', 'r', 'e', 'f' };
 
-    /** 
+    private static final long MINIMUM_SEARCH_OFFSET = 6;
+
+    /**
      * Collects all Xref/trailer objects and resolves them into single
-     * object using startxref reference. 
+     * object using startxref reference.
      */
-    private XrefTrailerResolver xrefTrailerResolver = new XrefTrailerResolver();
+    private final XrefTrailerResolver xrefTrailerResolver = new XrefTrailerResolver();
 
     private final COSParser parser;
     private final RandomAccessRead source;
@@ -59,7 +61,7 @@ public class XrefParser
      * Default constructor.
      *
      * @param cosParser the parser to be used to read the pdf.
-     * 
+     *
      */
     public XrefParser(COSParser cosParser)
     {
@@ -69,7 +71,7 @@ public class XrefParser
 
     /**
      * Returns the resulting cross reference table.
-     * 
+     *
      * @return
      */
     public Map<COSObjectKey, Long> getXrefTable()
@@ -79,12 +81,12 @@ public class XrefParser
 
     /**
      * Parses cross reference tables.
-     * 
+     *
      * @param document the corresponding COS document of the pdf.
      * @param startXRefOffset start offset of the first table
-     * 
+     *
      * @return the trailer dictionary
-     * 
+     *
      * @throws IOException if something went wrong
      */
     public COSDictionary parseXref(COSDocument document, long startXRefOffset) throws IOException
@@ -123,7 +125,7 @@ public class XrefParser
                             + source.getPosition());
                 }
                 trailer = xrefTrailerResolver.getCurrentTrailer();
-                // check for a XRef stream, it may contain some object ids of compressed objects 
+                // check for a XRef stream, it may contain some object ids of compressed objects
                 if(trailer.containsKey(COSName.XREF_STM))
                 {
                     int streamOffset = trailer.getInt(COSName.XREF_STM);
@@ -259,7 +261,7 @@ public class XrefParser
 
     /**
      * Parses an xref object stream starting with indirect object id.
-     * 
+     *
      * @return value of PREV item in dictionary or <code>-1</code> if no such item exists
      */
     private long parseXrefObjStream(long objByteOffset, boolean isStandalone) throws IOException
@@ -284,10 +286,10 @@ public class XrefParser
 
         return dict.getLong(COSName.PREV);
     }
-    
+
     /**
      * Check if the cross reference table/stream can be found at the current offset.
-     * 
+     *
      * @param startXRefOffset
      * @return the revised offset
      * @throws IOException
@@ -317,10 +319,10 @@ public class XrefParser
 
     /**
      * Try to find a fixed offset for the given xref table/stream.
-     * 
+     *
      * @param objectOffset the given offset where to look at
      * @return the fixed offset
-     * 
+     *
      * @throws IOException if something went wrong
      */
     private long calculateXRefFixedOffset(long objectOffset) throws IOException
@@ -344,7 +346,7 @@ public class XrefParser
 
     /**
      * Check if the cross reference stream can be found at the current offset.
-     * 
+     *
      * @param startXRefOffset the expected start offset of the XRef stream
      * @return the revised offset
      * @throws IOException if something went wrong
@@ -355,7 +357,7 @@ public class XrefParser
         {
             return true;
         }
-        // seek to offset-1 
+        // seek to offset-1
         source.seek(startXRefOffset - 1);
         int nextValue = source.read();
         // the first character has to be a whitespace, and then a digit
@@ -388,7 +390,7 @@ public class XrefParser
         }
         return false;
     }
-    
+
     private boolean validateXrefOffsets(Map<COSObjectKey, Long> xrefOffset) throws IOException
     {
         if (xrefOffset == null)
@@ -442,7 +444,7 @@ public class XrefParser
 
     /**
      * Check the XRef table by dereferencing all objects and fixing the offset if necessary.
-     * 
+     *
      * @throws IOException if something went wrong.
      */
     private void checkXrefOffsets() throws IOException
@@ -464,23 +466,23 @@ public class XrefParser
     /**
      * Check if the given object can be found at the given offset. Returns the provided object key if everything is ok.
      * If the generation number differs it will be fixed and a new object key is returned.
-     * 
+     *
      * @param objectKey the key of object we are looking for
      * @param offset the offset where to look
      * @param xrefOffset a map with with all known xref entries
      * @return returns the found/fixed object key
-     * 
+     *
      * @throws IOException if something went wrong
      */
     private COSObjectKey findObjectKey(COSObjectKey objectKey, long offset,
-            Map<COSObjectKey, Long> xrefOffset) throws IOException
+                                       Map<COSObjectKey, Long> xrefOffset) throws IOException
     {
         // there can't be any object at the very beginning of a pdf
-        if (offset < COSParser.MINIMUM_SEARCH_OFFSET)
+        if (offset < MINIMUM_SEARCH_OFFSET)
         {
             return null;
         }
-        try 
+        try
         {
             source.seek(offset);
             parser.skipWhiteSpaces();
@@ -567,7 +569,7 @@ public class XrefParser
         }
         return startXref;
     }
-    
+
     /**
      * This will parse the xref table from the stream and add it to the state
      * The XrefTable contents are ignored.
@@ -586,21 +588,21 @@ public class XrefParser
         {
             return false;
         }
-        
+
         // check for trailer after xref
         String str = parser.readString();
         byte[] b = str.getBytes(StandardCharsets.ISO_8859_1);
         source.seek(source.getPosition() - b.length);
-        
+
         // signal start of new XRef
         xrefTrailerResolver.nextXrefObj( startByteOffset, XRefType.TABLE );
-    
+
         if (str.startsWith("trailer"))
         {
             Log.w(TAG, "skipping empty xref table");
             return false;
         }
-        
+
         // Xref tables can have multiple sections. Each starts with a starting object id and a count.
         while(true)
         {
@@ -634,7 +636,7 @@ public class XrefParser
                 Log.w(TAG, String.format("XRefTable: invalid number of objects: %s", currentLine));
                 return false;
             }
-            
+
             parser.skipSpaces();
             for(int i = 0; i < count; i++)
             {

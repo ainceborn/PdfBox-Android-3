@@ -34,7 +34,7 @@ import java.util.TreeMap;
  * @author Ben Litchfield
  *
  */
-public class PDFObjectStreamParser extends BaseParser
+public class PDFObjectStreamParser extends COSParser
 {
     private final int numberOfObjects;
     private final int firstObject;
