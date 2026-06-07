@@ -3,7 +3,7 @@ PdfBox-Android-3
 [![](https://jitpack.io/v/ainceborn/PdfBox-Android-3.svg)](https://jitpack.io/#ainceborn/PdfBox-Android-3)
 
 This project is a fork of the original [PdfBox-Android](https://github.com/ainceborn/PdfBox-Android).  
-It includes selected fixes and updates from the latest [Apache PDFBox](https://github.com/apache/pdfbox) project.
+It includes fixes and updates from the latest [Apache PDFBox](https://github.com/apache/pdfbox) project.
 
 A port of Apache's PdfBox library to be usable on Android. Most features should be implemented by now. Feature requests can be added to the issue tracker. Stable releases can be added as a Gradle dependency from Maven Central.
 
@@ -20,7 +20,7 @@ repositories {
 }
 ...
 dependencies {
-   implementation 'com.github.ainceborn:PdfBox-Android-3:3.0.0'
+   implementation 'com.github.ainceborn:PdfBox-Android-3:3.0.1'
 }
 ```
 
@@ -52,5 +52,5 @@ dependencies {
 Important notes
 ==============
 
-* Currently based on PDFBox v2.0.27
-* Requires API 24 or greater
+* Currently based on PDFBox v3.x.x
+* Requires API 26 or greater
