@@ -29,7 +29,11 @@ import com.ainceborn.pdfbox.cos.COSName;
  */
 public class PDDeviceCMYK extends PDDeviceColorSpace
 {
-   public static final PDDeviceCMYK INSTANCE = new PDDeviceCMYK();
+   public static PDDeviceCMYK INSTANCE;
+   static
+   {
+      INSTANCE = new PDDeviceCMYK();
+   }
 
    private final PDColor initialColor = new PDColor(new float[]{0, 0, 0, 1}, this);
 
