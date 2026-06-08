@@ -13,13 +13,13 @@ jobs:
 
     steps:
       - name: Fetch Source
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Setup Java
         uses: actions/setup-java@v3.11.0
         with:
+          distribution: temurin
           java-version: 11
-          distribution: 'adopt'
 
       - name: Build & Test
         run: ./gradlew build test
@@ -37,21 +37,22 @@ jobs:
 
     steps:
       - name: Fetch Source
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Set up JDK
         uses: actions/setup-java@v3.11.0
         with:
+          distribution: temurin
           java-version: 11
-          distribution: 'adopt'
 
       - name: Instrumentation Tests
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: ${{ matrix.api-level }}
           target: google_apis
-          arch: x86_64
-          script: adb logcat *:S TestRunner:V & ./gradlew connectedCheck --no-build-cache --no-daemon --stacktrace
+          arch: arm64-v8a
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          script: ./gradlew connectedCheck --stacktrace
 
   instrumentation-test-summary:
     if: ${{ always() }}
@@ -74,13 +75,13 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Configure JDK
         uses: actions/setup-java@v3.11.0
         with:
+          distribution: temurin
           java-version: 11
-          distribution: 'adopt'
 
       - name: Upload Snapshot
         run: ./gradlew publish
