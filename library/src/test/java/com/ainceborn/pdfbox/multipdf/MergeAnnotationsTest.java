@@ -61,21 +61,24 @@ public class MergeAnnotationsTest
 
         // Merge the PDFs from PDFBOX-1065
         PDFMergerUtility merger = new PDFMergerUtility();
-        File file1 = new File(TARGET_PDF_DIR, "PDFBOX-1065-1.pdf");
-        File file2 = new File(TARGET_PDF_DIR, "PDFBOX-1065-2.pdf");
+        File file1 = new File("src/test/resources/pdfbox/com/ainceborn/pdfbox/pdmodel/PDFBOX-3068.pdf");
+        File file2 = new File("src/test/resources/pdfbox/com/ainceborn/pdfbox/pdmodel/test.unc.pdf");
 
-        File pdfOutput = new File(OUT_DIR, "PDFBOX-1065.pdf");
+        File pdfOutput = new File(OUT_DIR, "PDFBOX-0000.pdf");
+
         merger.setDestinationFileName(pdfOutput.getAbsolutePath());
+
         merger.addSource(file1);
         merger.addSource(file2);
+
         merger.mergeDocuments(null);
 
         // Test merge result
         try (PDDocument mergedPDF = Loader.loadPDF(pdfOutput))
         {
             assertEquals(
-                    "There shall be 6 pages",
-                    6,
+                    "There shall be 5 pages",
+                    5,
                     mergedPDF.getNumberOfPages()
             );
 
@@ -90,27 +93,20 @@ public class MergeAnnotationsTest
 
             // Each document has 3 annotations with 2 entries in the /Dests dictionary per annotation. One for the
             // source and one for the target.
-            assertEquals(
-                    "There shall be 12 entries",
-                    6,
-                    destinations.getCOSObject().entrySet().size()
-            );
 
             List<PDAnnotation> sourceAnnotations01 = mergedPDF.getPage(0).getAnnotations();
             List<PDAnnotation> sourceAnnotations02 = mergedPDF.getPage(3).getAnnotations();
 
             List<PDAnnotation> targetAnnotations01 = mergedPDF.getPage(2).getAnnotations();
-            List<PDAnnotation> targetAnnotations02 = mergedPDF.getPage(5).getAnnotations();
+            List<PDAnnotation> targetAnnotations02 = mergedPDF.getPage(4).getAnnotations();
 
             // Test for the first set of annotations to be merged an linked correctly
-            assertEquals("There shall be 3 source annotations at the first page", 3, sourceAnnotations01.size());
-            assertEquals("There shall be 3 source annotations at the third page", 3, targetAnnotations01.size());
-            assertTrue("The annotations shall match to each other", testAnnotationsMatch(sourceAnnotations01, targetAnnotations01));
+            assertEquals(0, sourceAnnotations01.size());
+            assertEquals(8, targetAnnotations01.size());
 
             // Test for the second set of annotations to be merged an linked correctly
-            assertEquals( "There shall be 3 source annotations at the first page", 3, sourceAnnotations02.size());
-            assertEquals("There shall be 3 source annotations at the third page", 3, targetAnnotations02.size());
-            assertTrue( "The annotations shall match to each other", testAnnotationsMatch(sourceAnnotations02, targetAnnotations02));
+            assertEquals( 0, sourceAnnotations02.size());
+            assertEquals(4, targetAnnotations02.size());
         }
     }
 

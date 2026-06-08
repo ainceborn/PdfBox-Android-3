@@ -21,6 +21,8 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 
 import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.HashMap;
 import java.util.Map;
@@ -30,6 +32,7 @@ import com.ainceborn.pdfbox.cos.COSArray;
 import com.ainceborn.pdfbox.cos.COSDictionary;
 import com.ainceborn.pdfbox.cos.COSName;
 import com.ainceborn.pdfbox.io.IOUtils;
+import com.ainceborn.pdfbox.io.RandomAccessReadBuffer;
 import com.ainceborn.pdfbox.pdmodel.PDDocument;
 import com.ainceborn.pdfbox.pdmodel.PDDocumentCatalog;
 import com.ainceborn.pdfbox.pdmodel.PDResources;
@@ -53,41 +56,29 @@ public class PDAcroFormFromAnnotsTest
     * @throws IOException
     */
    @Test
-   public void testFromAnnots4985DefaultMode() throws IOException
-   {
+   public void testFromAnnots4985DefaultMode() throws IOException, URISyntaxException {
 
       String sourceUrl = "https://issues.apache.org/jira/secure/attachment/13013354/POPPLER-806.pdf";
       String acrobatSourceUrl = "https://issues.apache.org/jira/secure/attachment/13013384/POPPLER-806-acrobat.pdf";
 
-      int numFormFieldsByAcrobat = 0;
+      int numFormFieldsByAcrobat;
 
-      PDDocument testPdf = null;
-      try
+      try (PDDocument testPdf = Loader.loadPDF(RandomAccessReadBuffer.createBufferFromStream(new URI(acrobatSourceUrl).toURL().openStream())))
       {
-         testPdf = Loader.loadPDF(new URL(acrobatSourceUrl).openStream());
          PDDocumentCatalog catalog = testPdf.getDocumentCatalog();
          PDAcroForm acroForm = catalog.getAcroForm(null);
          numFormFieldsByAcrobat = acroForm.getFields().size();
       }
-      finally
-      {
-         IOUtils.closeQuietly(testPdf);
-      }
 
-      try
+      try (PDDocument testPdf = Loader.loadPDF(RandomAccessReadBuffer.createBufferFromStream(new URI(sourceUrl).toURL().openStream())))
       {
-         testPdf = Loader.loadPDF(new URL(sourceUrl).openStream());
          PDDocumentCatalog catalog = testPdf.getDocumentCatalog();
-         // need to do a low level cos access as the PDModel access will build the AcroForm 
+         // need to do a low level cos access as the PDModel access will build the AcroForm
          COSDictionary cosAcroForm = (COSDictionary) catalog.getCOSObject().getDictionaryObject(COSName.ACRO_FORM);
          COSArray cosFields = (COSArray) cosAcroForm.getDictionaryObject(COSName.FIELDS);
-         assertEquals("Initially there shall be 0 fields", 0, cosFields.size());
+         assertEquals("Initially there shall be 0 fields",0, cosFields.size());
          PDAcroForm acroForm = catalog.getAcroForm();
-         assertEquals("After rebuild there shall be " + numFormFieldsByAcrobat + " fields", numFormFieldsByAcrobat, acroForm.getFields().size());
-      }
-      finally
-      {
-         IOUtils.closeQuietly(testPdf);
+         assertEquals("After rebuild there shall be " + numFormFieldsByAcrobat + " fields",numFormFieldsByAcrobat, acroForm.getFields().size());
       }
    }
 

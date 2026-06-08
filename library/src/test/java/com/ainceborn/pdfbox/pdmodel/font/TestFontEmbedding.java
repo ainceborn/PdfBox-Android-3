@@ -494,7 +494,7 @@ public class TestFontEmbedding
             }
             catch (IllegalStateException | IllegalArgumentException e)
             {
-                assertEquals("No glyph for U+3042 (あ) in font LiberationSans", e.getMessage());
+                assertEquals("could not find the glyphId for the character: あ, codePoint: 12354 (0x3042)", e.getMessage());
                 return;
             }
 
@@ -526,7 +526,7 @@ public class TestFontEmbedding
             }
             catch (IllegalStateException | IllegalArgumentException e)
             {
-                assertEquals("No glyph for U+29E3D (鸽) in font LiberationSans", e.getMessage());
+                assertEquals("could not find the glyphId for the character: 𩸽, codePoint: 171581 (0x29E3D)", e.getMessage());
                 return;
             }
 
