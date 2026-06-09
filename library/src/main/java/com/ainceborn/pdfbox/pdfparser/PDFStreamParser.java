@@ -34,15 +34,23 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Pattern;
 
 /**
  * This will parse a PDF byte stream and extract operands and such.
  *
  * @author Ben Litchfield
  */
-public class PDFStreamParser extends BaseParser
+public class PDFStreamParser extends COSParser
 {
+    /**
+     * Log instance.
+     */
     private static final String TAG = "PdfBox-Android";
+
+    // Pattern to match numbers (integers or decimals). Safe from ReDoS: no overlapping quantifiers
+    // or character classes that cause backtracking. The optional decimal group is explicit and bounded.
+    private static final Pattern NUMBER_PATTERN = Pattern.compile("^\\d*(\\.\\d*)?$");
     private static final int MAX_BIN_CHAR_TEST_LENGTH = 10;
     private final byte[] binCharTestArr = new byte[MAX_BIN_CHAR_TEST_LENGTH];
     private int inlineImageDepth = 0;
@@ -63,8 +71,9 @@ public class PDFStreamParser extends BaseParser
      * Constructor.
      *
      * @param bytes the bytes to parse.
+     * @throws IOException If there is an error initializing the stream.
      */
-    public PDFStreamParser(byte[] bytes)
+    public PDFStreamParser(byte[] bytes) throws IOException
     {
         super(new RandomAccessReadBuffer(bytes));
     }
@@ -111,15 +120,13 @@ public class PDFStreamParser extends BaseParser
             case '<':
                 // pull off first left bracket
                 source.read();
-
                 // check for second left bracket
                 c = (char) source.peek();
 
-                // put back first bracket
-                source.rewind(1);
-
                 if (c == '<')
                 {
+                    // put back first bracket
+                    source.rewind(1);
                     try
                     {
                         return parseCOSDictionary(true);
@@ -134,7 +141,7 @@ public class PDFStreamParser extends BaseParser
                 }
                 else
                 {
-                    return parseCOSString();
+                    return parseCOSHexString();
                 }
             case '[':
                 // array
@@ -151,7 +158,7 @@ public class PDFStreamParser extends BaseParser
                 }
             case '(':
                 // string
-                return parseCOSString();
+                return parseCOSLiteralString();
             case '/':
                 // name
                 return parseCOSName();
@@ -387,7 +394,7 @@ public class PDFStreamParser extends BaseParser
                 // or a number (PDFBOX-5957)
                 s = new String(binCharTestArr, startOpIdx, endOpIdx - startOpIdx, StandardCharsets.US_ASCII);
                 if (!"Q".equals(s) && !"EMC".equals(s) && !"S".equals(s) &&
-                        !s.matches("^\\d*\\.?\\d*$"))
+                        !NUMBER_PATTERN.matcher(s).find())
                 {
                     // operator is not Q, not EMC, not S, nor a number -> assume binary data
                     noBinData = false;
@@ -404,7 +411,7 @@ public class PDFStreamParser extends BaseParser
                 }
                 Log.d(TAG, String.format("startOpIdx: %d endOpIdx: %d s = '%s'", startOpIdx, endOpIdx, s));
                 // look for token of 3 chars max or a number
-                if (endOpIdx - startOpIdx > 3 && !s.matches("^\\d*\\.?\\d*$"))
+                if (endOpIdx - startOpIdx > 3 && !NUMBER_PATTERN.matcher(s).find())
                 {
                     noBinData = false; // "operator" too long, assume binary data
                 }

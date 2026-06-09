@@ -23,8 +23,6 @@ import android.graphics.DashPathEffect;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.PointF;
-import android.graphics.PorterDuff;
-import android.graphics.PorterDuffXfermode;
 import android.graphics.RectF;
 import android.graphics.Region;
 import android.graphics.Shader;
@@ -129,7 +127,7 @@ public class PageDrawer extends PDFGraphicsStreamEngine
 
     // last clipping path
     private Region lastClip;
-    private int lastStackSize = 0;
+    private int clipSaveCount = 0;
 
     // clip when drawPage() is called, can be null, must be intersected when clipping
     private Path initialClip;
@@ -393,28 +391,26 @@ public class PageDrawer extends PDFGraphicsStreamEngine
 
     protected final void setClip()
     {
-        Region clippingPath = getGraphicsState().getCurrentClippingPath();
-        if (clippingPath != lastClip)
+        Region clip = getGraphicsState().getCurrentClippingPath();
+
+        if (clip == lastClip)
         {
-            // android canvas manage clips with save/restore in a private stack, we can not
-            // modify clip casually, so we store current stack size in `lastStackSize` after setting clip,
-            // and restore it before next setting
-            if (lastStackSize >= 1)
-            {
-                canvas.restoreToCount(lastStackSize);
-            }
-            lastStackSize = canvas.save();
-            if (!clippingPath.isEmpty())
-            {
-                canvas.clipPath(clippingPath.getBoundaryPath());
-            }
-            if (initialClip != null)
-            {
-                // apply the remembered initial clip, but transform it first
-                //TODO see PDFBOX-4583
-            }
-            lastClip = clippingPath;
+            return;
         }
+
+        if (clipSaveCount > 0)
+        {
+            canvas.restoreToCount(clipSaveCount);
+        }
+
+        clipSaveCount = canvas.save();
+
+        if (!clip.isEmpty())
+        {
+            canvas.clipPath(clip.getBoundaryPath());
+        }
+
+        lastClip = clip;
     }
 
     @Override
@@ -813,7 +809,7 @@ public class PageDrawer extends PDFGraphicsStreamEngine
     public void drawImage(PDImage pdImage) throws IOException
     {
         if (pdImage instanceof PDImageXObject &&
-            isHiddenOCG(((PDImageXObject) pdImage).getOptionalContent()))
+                isHiddenOCG(((PDImageXObject) pdImage).getOptionalContent()))
         {
             return;
         }
@@ -821,7 +817,10 @@ public class PageDrawer extends PDFGraphicsStreamEngine
         {
             return;
         }
-        Matrix ctm = getGraphicsState().getCurrentTransformationMatrix();
+
+        PDGraphicsState graphicsState = getGraphicsState();
+
+        Matrix ctm = graphicsState.getCurrentTransformationMatrix();
         AffineTransform at = ctm.createAffineTransform();
 
         if (!pdImage.getInterpolate())
@@ -840,24 +839,29 @@ public class PageDrawer extends PDFGraphicsStreamEngine
             {
                 bim = pdImage.getImage();
             }
-            Matrix m = new Matrix(at);
-            boolean isScaledUp = bim.getWidth() < Math.abs(Math.round(m.getScalingFactorX())) ||
-                bim.getHeight() < Math.abs(Math.round(m.getScalingFactorY()));
 
+            boolean isScaledUp =
+                    bim.getWidth() <= Math.abs(Math.round(ctm.getScalingFactorX() * xformScalingFactorX)) ||
+                            bim.getHeight() <= Math.abs(Math.round(ctm.getScalingFactorY() * xformScalingFactorY));
             if (isScaledUp)
             {
-//                graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
-//                    RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+                // nearest neighbor (как VALUE_INTERPOLATION_NEAREST_NEIGHBOR)
+                paint.setFilterBitmap(false);
+            }
+            else
+            {
+                // smooth interpolation (по умолчанию Android)
+                paint.setFilterBitmap(true);
             }
         }
 
-        setClip();
-
         if (pdImage.isStencil())
         {
-            if (getGraphicsState().getNonStrokingColor().getColorSpace() instanceof PDPattern){
+            if (graphicsState.getNonStrokingColor().getColorSpace() instanceof PDPattern)
+            {
                 if (canvas == null || paint == null) return;
 
+                // draw the paint
                 RectF unitRect = new RectF(0, 0, 1, 1);
 
                 android.graphics.Matrix matrix = at.toMatrix();
@@ -869,43 +873,107 @@ public class PageDrawer extends PDFGraphicsStreamEngine
 
                 if (w <= 0 || h <= 0) return;
 
-                // --- render paint ---
                 Bitmap renderedPaint = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
-                Canvas paintCanvas = new Canvas(renderedPaint);
+                Canvas paintCanvas = new Canvas(renderedPaint); // original Graphics2D g = (Graphics2D) renderedPaint.getGraphics();
                 paintCanvas.translate(-bounds.left, -bounds.top);
                 paintCanvas.drawRect(0, 0, 1, 1, paint);
 
                 // --- render mask ---
                 Bitmap mask = pdImage.getImage();
-                android.graphics.Matrix imageTransform = new android.graphics.Matrix(matrix);
+                AffineTransform imageTransform = new AffineTransform(at);
+                imageTransform.scale(1.0 / mask.getWidth(), -1.0 / mask.getHeight());
+                imageTransform.translate(0, -mask.getHeight());
 
-                // normalize mask
-                imageTransform.postScale(1.0f / mask.getWidth(), -1.0f / mask.getHeight());
-                imageTransform.postTranslate(0, -mask.getHeight());
+                android.graphics.Matrix current = new android.graphics.Matrix();
+                paintCanvas.getMatrix(current);
 
-                Bitmap renderedMask = Bitmap.createBitmap(w, h, Bitmap.Config.ALPHA_8);
-                Canvas maskCanvas = new Canvas(renderedMask);
+                AffineTransform full = new AffineTransform(current); // Cannot resolve method 'getTransform' in 'Canvas'
 
-                // scale mask for smooth
-                float scaleX = w / (float) mask.getWidth();
-                float scaleY = h / (float) mask.getHeight();
-                android.graphics.Matrix scaleMatrix = new android.graphics.Matrix();
-                scaleMatrix.setScale(scaleX, scaleY);
-                maskCanvas.drawBitmap(mask, scaleMatrix, null);
+                full.concatenate(imageTransform);
+                Matrix m = new Matrix(full);
+                double scaleX = Math.abs(m.getScalingFactorX());
+                double scaleY = Math.abs(m.getScalingFactorY());
 
-                // --- apply mask to paint via Canvas ---
-                Paint finalPaint = new Paint();
-                finalPaint.setFilterBitmap(true);
-                finalPaint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.DST_IN));
+                boolean smallMask = mask.getWidth() <= 8 && mask.getHeight() <= 8;
+                if (mask.getWidth() == 1 && mask.getHeight() == 1)
+                {
+                    // PDFBOX-5802: force usage of the lookup table if it is only 1 pixel
+                    // (See the comment for PDFBOX-5403 that it isn't done for some
+                    // cases based purely on the rendering result of one file!)
+                    smallMask = false;
+                }
+                if (!smallMask)
+                {
+                    // PDFBOX-5403:
+                    // The mask is copied to RGB because this supports a smooth scaling, so we
+                    // get a mask with 255 values instead of just 0 and 255.
+                    // Inverting is done because when we don't do it, the getScaledInstance() call
+                    // produces a black line in many masks. With the inversion we have a white line
+                    // which is neutral. Because of the inversion we don't have to substract from 255
+                    // in the "apply the mask" segment when rasterPixel[3] is assigned.
 
-                var state = getGraphicsState();
-                if(state != null){
-                    float lineWidth = transformWidth(state.getLineWidth());
-                    paint.setStrokeWidth(lineWidth);
+                    // The inversion is not done for very small ones, because of
+                    // PDFBOX-2171-002-002710-p14.pdf where the "New Harmony Consolidated" and
+                    // "Sailor Springs" patterns became almost invisible.
+                    // (We may have to decide this differently in the future, e.g. on b/w relationship)
+                    int[] inv = getInvLookupTable();
+                    mask = applyLUT(mask, inv, inv, inv);
                 }
 
-                Canvas finalCanvas = new Canvas(renderedPaint);
-                finalCanvas.drawBitmap(renderedMask, 0, 0, finalPaint);
+                Bitmap renderedMask =  Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+                Canvas maskCanvas = new Canvas(renderedMask);
+                maskCanvas.translate(-bounds.left, -bounds.top);
+
+                if (smallMask)
+                {
+                    maskCanvas.save();
+                    maskCanvas.concat(current);
+                    maskCanvas.drawBitmap(mask, 0, 0, paint);
+                    maskCanvas.restore();
+                }
+                else if (scaleX != 0 && scaleY != 0)
+                {
+                    while (scaleX < 0.25 || Math.round(mask.getWidth() * scaleX) < 1)
+                    {
+                        scaleX *= 2.0;
+                    }
+                    while (scaleY < 0.25 || Math.round(mask.getHeight() * scaleY) < 1)
+                    {
+                        scaleY *= 2.0;
+                    }
+                    int w2 = (int) Math.round(mask.getWidth() * scaleX);
+                    int h2 = (int) Math.round(mask.getHeight() * scaleY);
+
+                    Bitmap scaledMask = Bitmap.createScaledBitmap(mask, w2, h2, true);
+
+                    imageTransform.scale(1f / Math.abs(scaleX), 1f / Math.abs(scaleY));
+
+                    maskCanvas.save();
+                    maskCanvas.concat(imageTransform.toMatrix());
+                    maskCanvas.drawBitmap(scaledMask, 0, 0, paint);
+                    maskCanvas.restore();
+                }
+
+                // apply the mask
+                int[] paintPixels = new int[w * h];
+                int[] maskPixels = new int[w * h];
+
+                renderedPaint.getPixels(paintPixels, 0, w, 0, 0, w, h);
+                renderedMask.getPixels(maskPixels, 0, w, 0, 0, w, h);
+
+                for (int i = 0; i < paintPixels.length; i++)
+                {
+                    int src = paintPixels[i];
+                    int alpha = maskPixels[i] & 0xFF;
+
+                    int r = (src >> 16) & 0xFF;
+                    int g = (src >> 8) & 0xFF;
+                    int b = src & 0xFF;
+
+                    paintPixels[i] = (alpha << 24) | (r << 16) | (g << 8) | b;
+                }
+
+                renderedPaint.setPixels(paintPixels, 0, w, 0, 0, w, h);
 
                 canvas.save();
                 canvas.translate(bounds.left, bounds.top);
@@ -914,12 +982,11 @@ public class PageDrawer extends PDFGraphicsStreamEngine
             }
             else {
                 var paint = getPaint(getGraphicsState().getNonStrokingColor());
-                paint.setStyle(Paint.Style.STROKE);
-                setClip();
+
                 var image = pdImage.getStencilImage(paint);
 
                 // draw the image
-                drawBufferedImage(pdImage, image, at, canvas);
+                drawBufferedImageV2(pdImage, image, at, canvas);
             }
         }
         else
@@ -928,12 +995,12 @@ public class PageDrawer extends PDFGraphicsStreamEngine
             {
                 int subsampling = getSubsampling(pdImage, at);
                 // draw the subsampled image
-                drawBitmap(pdImage.getImage(null, subsampling), at);
+                drawBufferedImageV2(pdImage, pdImage.getImage(null, subsampling), at , canvas);
             }
             else
             {
                 // subsampling not allowed, draw the image
-                drawBitmap(pdImage.getImage(), at);
+                drawBufferedImageV2(pdImage, pdImage.getImage(), at, canvas);
             }
         }
 
@@ -943,54 +1010,123 @@ public class PageDrawer extends PDFGraphicsStreamEngine
             // the setRenderingHint method, so we re-set all hints, see PDFBOX-2302
             setRenderingHints();
         }
+
+        canvas.save();
     }
 
-    private void drawBufferedImage(PDImage pdImage, Bitmap bitmap, AffineTransform at, Canvas canvas) throws IOException
+    private void drawBufferedImageV2(PDImage pdImage, Bitmap image, AffineTransform at, Canvas canvas) throws IOException
     {
-        if (bitmap == null || canvas == null) return;
 
-        int saveCount = canvas.save();
-
-        android.graphics.Matrix matrix = at.toMatrix();
-
-        int width = bitmap.getWidth();
-        int height = bitmap.getHeight();
-        matrix.preScale(1.0f / width, -1.0f / height);
-        matrix.postTranslate(0, -height);
+        AffineTransform originalTransform = new AffineTransform(getGraphicsState().getCurrentTransformationMatrix().createAffineTransform());
+        AffineTransform imageTransform = new AffineTransform(at);
+        int width = image.getWidth();
+        int height = image.getHeight();
+        imageTransform.scale(1.0 / width, -1.0 / height);
+        imageTransform.translate(0, -height);
 
         PDSoftMask softMask = getGraphicsState().getSoftMask();
-        boolean hasImageMask = pdImage.getCOSObject() .containsKey(COSName.MASK) ||
+
+        // PDFBOX-5307 / PDF.js PR#19269
+        // From section 11.6.4.3 Mask Shape and Opacity in the PDF specification:
+        // "Either form of mask in the image dictionary shall override the current soft mask
+        //  in the graphics state"
+        boolean hasImageMask = pdImage.getCOSObject().containsKey(COSName.MASK) ||
                 pdImage.getCOSObject().containsKey(COSName.SMASK);
 
         if (softMask != null && !hasImageMask)
         {
-            Paint paint = new Paint();
-            paint.setAntiAlias(true);
-            paint.setFilterBitmap(true);
+            RectF rectangle = new RectF(0, 0, width, height);
+            BitmapShader shader = new BitmapShader(
+                    image,
+                    Shader.TileMode.CLAMP,
+                    Shader.TileMode.CLAMP
+            );
 
-            var state = getGraphicsState();
-            if(state != null){
-                float lineWidth = transformWidth(state.getLineWidth());
-                paint.setStrokeWidth(lineWidth);
-            }
+            Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            paint.setShader(shader);
 
-            paint.setShader(new BitmapShader(bitmap, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP));
 
-            // TODO: apply softMask to Paint
-            // paint = applySoftMaskToPaintAndroid(paint, softMask);
+            canvas.save();
 
+            android.graphics.Matrix matrix = imageTransform.toMatrix();
             canvas.concat(matrix);
-            canvas.drawRect(0, 0, 1, 1, paint);
+
+            canvas.drawRect(rectangle, paint);
+
+            canvas.restore();
         }
         else
         {
-            // TODO: apply TransferFunction to bitmap, if has
-            // bitmap = applyTransferFunctionAndroid(bitmap, getGraphicsState().getTransfer());
+            COSBase transfer = getGraphicsState().getTransfer();
+            if (transfer instanceof COSArray || transfer instanceof COSDictionary)
+            {
+                image = applyTransferFunction(image, transfer);
+            }
 
-            canvas.drawBitmap(bitmap, matrix, null);
+            // PDFBOX-4516, PDFBOX-4527, PDFBOX-4815, PDFBOX-4886, PDFBOX-4863:
+            // graphics.drawImage() has terrible quality when scaling down, even when
+            // RenderingHints.VALUE_INTERPOLATION_BICUBIC, VALUE_ALPHA_INTERPOLATION_QUALITY,
+            // VALUE_COLOR_RENDER_QUALITY and VALUE_RENDER_QUALITY are all set.
+            // A workaround is to get a pre-scaled image with Image.getScaledInstance()
+            // and then draw that one. To reduce differences in testing
+            // (partly because the method needs integer parameters), only smaller scalings
+            // will trigger the workaround. Because of the slowness we only do it if the user
+            // expects quality rendering and interpolation.
+            Matrix imageTransformMatrix = new Matrix(imageTransform);
+            Matrix graphicsTransformMatrix = new Matrix(originalTransform);
+            float scaleX = Math.abs(imageTransformMatrix.getScalingFactorX() * graphicsTransformMatrix.getScalingFactorX());
+            float scaleY = Math.abs(imageTransformMatrix.getScalingFactorY() * graphicsTransformMatrix.getScalingFactorY());
+
+            if (scaleX < imageDownscalingOptimizationThreshold || scaleY < imageDownscalingOptimizationThreshold)
+            {
+                int w = Math.round(image.getWidth() * scaleX);
+                int h = Math.round(image.getHeight() * scaleY);
+                if (w < 1 || h < 1)
+                {
+                    canvas.drawBitmap(image, imageTransform.toMatrix(), null);
+                    return;
+                }
+                Bitmap imageToDraw =Bitmap.createScaledBitmap(
+                        image,
+                        w,
+                        h,
+                        true);
+                // remove the scale (extracted from w and h, to have it from the rounded values
+                // hoping to reverse the rounding: without this, we get an horizontal line
+                // when rendering PDFJS-8860-Pattern-Size1.pdf at 100% )
+                imageTransform.scale(1f / w * image.getWidth(), 1f / h * image.getHeight());
+                imageTransform.preConcatenate(originalTransform);
+
+                canvas.save();
+
+                canvas.setMatrix(new android.graphics.Matrix());
+
+                Paint paint = new Paint(Paint.FILTER_BITMAP_FLAG);
+                paint.setAntiAlias(true);
+
+                canvas.drawBitmap(
+                        imageToDraw,
+                        imageTransform.toMatrix(),
+                        paint);
+
+                canvas.restore();
+            }
+            else
+            {
+                Paint paint = new Paint(Paint.FILTER_BITMAP_FLAG);
+                paint.setAntiAlias(true);
+
+                canvas.save();
+
+                canvas.drawBitmap(
+                        image,
+                        imageTransform.toMatrix(),
+                        paint
+                );
+
+                canvas.restore();
+            }
         }
-
-        canvas.restoreToCount(saveCount);
     }
 
     /**
@@ -1027,7 +1163,6 @@ public class PageDrawer extends PDFGraphicsStreamEngine
 
     private void drawBitmap(Bitmap image, AffineTransform at) throws IOException
     {
-        setClip();
         AffineTransform imageTransform = new AffineTransform(at);
         int width = image.getWidth();
         int height = image.getHeight();
@@ -1805,5 +1940,41 @@ public class PageDrawer extends PDFGraphicsStreamEngine
             }
         }
         return true;
+    }
+
+    private int[] getInvLookupTable() {
+        int[] inv = new int[256];
+        for (int i = 0; i < 256; i++) {
+            inv[i] = 255 - i;
+        }
+        return inv;
+    }
+
+    public static Bitmap applyLUT(Bitmap src, int[] lutR, int[] lutG, int[] lutB) {
+        Bitmap bmp = src.copy(Bitmap.Config.ARGB_8888, true);
+
+        int width = bmp.getWidth();
+        int height = bmp.getHeight();
+
+        int[] pixels = new int[width * height];
+        bmp.getPixels(pixels, 0, width, 0, 0, width, height);
+
+        for (int i = 0; i < pixels.length; i++) {
+            int color = pixels[i];
+
+            int a = (color >>> 24) & 0xFF;
+            int r = (color >>> 16) & 0xFF;
+            int g = (color >>> 8) & 0xFF;
+            int b = color & 0xFF;
+
+            r = lutR[r];
+            g = lutG[g];
+            b = lutB[b];
+
+            pixels[i] = (a << 24) | (r << 16) | (g << 8) | b;
+        }
+
+        bmp.setPixels(pixels, 0, width, 0, 0, width, height);
+        return bmp;
     }
 }

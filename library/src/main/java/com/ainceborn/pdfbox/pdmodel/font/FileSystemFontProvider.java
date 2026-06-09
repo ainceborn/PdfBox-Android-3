@@ -18,7 +18,6 @@ package com.ainceborn.pdfbox.pdmodel.font;
 
 import android.os.Build;
 import android.util.Log;
-import android.util.Pair;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
@@ -40,6 +39,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.zip.CRC32;
 
+import com.ainceborn.Pair;
 import com.ainceborn.fontbox.FontBoxFont;
 import com.ainceborn.fontbox.ttf.FontHeaders;
 import com.ainceborn.fontbox.ttf.OS2WindowsMetricsTable;
@@ -653,7 +653,8 @@ final class FileSystemFontProvider extends FontProvider
 
         if (!pending.isEmpty()) {
             Log.w("PdfBox-Android", " new font files found, font cache will be re-built " + pending.size());
-            return new Pair<>(new ArrayList<>(pending.values()), results);
+            var pair = new Pair<List<File>, List<FSFontInfo>>(new ArrayList<>(pending.values()), results);
+            return pair;
         }
 
         return new Pair<>(new ArrayList<>(pending.values()), results);

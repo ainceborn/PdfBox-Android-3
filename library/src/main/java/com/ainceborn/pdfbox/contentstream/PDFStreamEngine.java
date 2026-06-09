@@ -557,7 +557,12 @@ public abstract class PDFStreamEngine
                         shouldProcessColorOperators = false;
                     }
                     isFirstOperator = false;
-                    processOperator((Operator) token, arguments);
+                    if(contentStream instanceof PDTilingPattern && ((Operator) token).getName().equals("Do")){
+                        processOperator((Operator) token, arguments);
+                    }
+                    else{
+                        processOperator((Operator) token, arguments);
+                    }
                     arguments.clear();
                 }
                 else

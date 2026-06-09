@@ -52,16 +52,16 @@ def pomConfig = {
     }
     developers {
         developer {
-            name "Tom Roush"
-            email "tom@tom-roush.com"
+            name "Kanstantsin Valeitsenak"
+            email "reus.ainceborn@gmail.com"
             organization "PdfBox-Android Developers"
-            organizationUrl "https://github.com/TomRoush/PdfBox-Android"
+            organizationUrl "https://github.com/ainceborn/PdfBox-Android-3"
         }
     }
     scm {
-        connection "scm:git:git@github.com:TomRoush/PdfBox-Android.git"
-        developerConnection "scm:git:ssh@github.com:TomRoush/PdfBox-Android.git"
-        url "https://github.com/TomRoush/PdfBox-Android"
+        connection "scm:git:git@github.com:ainceborn/PdfBox-Android-3.git"
+        developerConnection "scm:git:ssh@github.com:ainceborn/PdfBox-Android-3.git"
+        url "https://github.com/ainceborn/PdfBox-Android-3"
     }
 }
 
