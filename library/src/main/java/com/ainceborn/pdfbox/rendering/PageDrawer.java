@@ -281,6 +281,7 @@ public class PageDrawer extends PDFGraphicsStreamEngine
         Path savedLinePath = this.linePath;
         Path.FillType savedClipFillType = this.clipWindingRule;
         Region savedLastClip = this.lastClip;
+        int savedClipSaveCount = this.clipSaveCount;  // must save/restore to avoid corrupting main canvas state
         Path savedInitialClip = this.initialClip;
         boolean savedFlipTG = this.flipTG;
 
@@ -288,6 +289,7 @@ public class PageDrawer extends PDFGraphicsStreamEngine
         this.linePath = new Path();
         this.clipWindingRule = Path.FillType.WINDING;
         this.lastClip = null;
+        this.clipSaveCount = 0;  // reset for the tiling pattern's canvas
         this.initialClip = null;
         this.flipTG = true;
         setRenderingHints();
@@ -298,6 +300,7 @@ public class PageDrawer extends PDFGraphicsStreamEngine
         this.canvas = savedCanvas;
         this.linePath = savedLinePath;
         this.lastClip = savedLastClip;
+        this.clipSaveCount = savedClipSaveCount;  // restore main canvas clip state
         this.initialClip = savedInitialClip;
         this.clipWindingRule = savedClipFillType;
     }
@@ -761,8 +764,16 @@ public class PageDrawer extends PDFGraphicsStreamEngine
     @Override
     public void clip(Path.FillType windingRule)
     {
-        // the clipping path will not be updated until the succeeding painting operator is called
-        clipWindingRule = windingRule;
+        // Apply clip immediately like original PDFBox (not deferred to endPath)
+        // PDFBOX-4949: don't clip if path is empty ("W n" only, no actual path)
+        if (!linePath.isEmpty())
+        {
+            linePath.setFillType(windingRule);
+            getGraphicsState().intersectClippingPath(linePath);
+        }
+        // PDFBOX-3836: reset lastClip so setClip() re-evaluates on next draw call
+        lastClip = null;
+        clipWindingRule = null;
     }
 
     @Override
@@ -854,6 +865,9 @@ public class PageDrawer extends PDFGraphicsStreamEngine
                 paint.setFilterBitmap(true);
             }
         }
+
+        // Apply current clipping path before drawing image (matches original PDFBox behaviour)
+        setClip();
 
         if (pdImage.isStencil())
         {
@@ -1010,8 +1024,6 @@ public class PageDrawer extends PDFGraphicsStreamEngine
             // the setRenderingHint method, so we re-set all hints, see PDFBOX-2302
             setRenderingHints();
         }
-
-        canvas.save();
     }
 
     private void drawBufferedImageV2(PDImage pdImage, Bitmap image, AffineTransform at, Canvas canvas) throws IOException
