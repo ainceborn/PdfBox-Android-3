@@ -1009,12 +1009,12 @@ public class PageDrawer extends PDFGraphicsStreamEngine
             {
                 int subsampling = getSubsampling(pdImage, at);
                 // draw the subsampled image
-                drawBufferedImageV2(pdImage, pdImage.getImage(null, subsampling), at , canvas);
+                drawBitmap(pdImage.getImage(null, subsampling), at);
             }
             else
             {
                 // subsampling not allowed, draw the image
-                drawBufferedImageV2(pdImage, pdImage.getImage(), at, canvas);
+                drawBitmap(pdImage.getImage(), at);
             }
         }
 
