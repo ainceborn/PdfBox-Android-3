@@ -45,7 +45,7 @@ public final class PDComboBox extends PDChoice
 
     /**
      * Constructor.
-     *
+     * 
      * @param acroForm The form that this field is part of.
      * @param field the PDF object to represent as a field.
      * @param parent the parent node of the node
@@ -57,7 +57,7 @@ public final class PDComboBox extends PDChoice
 
     /**
      * Determines if Edit is set.
-     *
+     * 
      * @return true if the combo box shall include an editable text box as well as a drop-down list.
      */
     public boolean isEdit()
@@ -74,7 +74,7 @@ public final class PDComboBox extends PDChoice
     {
         getCOSObject().setFlag(COSName.FF, FLAG_EDIT, edit);
     }
-
+    
     @Override
     void constructAppearances() throws IOException
     {
@@ -84,6 +84,16 @@ public final class PDComboBox extends PDChoice
 
         if (!values.isEmpty())
         {
+            if (hasSeparateExportAndDisplayValues())
+            {
+                List<String> displayValues = getOptionsDisplayValues();
+                int index = getOptions().indexOf(values.get(0));
+                if (index != -1 && index < displayValues.size())
+                {
+                    apHelper.setAppearanceValue(displayValues.get(index));
+                    return;
+                }
+            }
             apHelper.setAppearanceValue(values.get(0));
         }
         else

@@ -63,21 +63,19 @@ public class PDGraphicsState implements Cloneable
     private double alphaConstant = 1.0;
     private double nonStrokingAlphaConstant = 1.0;
     private boolean alphaSource = false;
+    private Matrix textMatrix = null;
+    private Matrix textLineMatrix = null;
 
     // DEVICE-DEPENDENT parameters
     private boolean overprint = false;
     private boolean nonStrokingOverprint = false;
-    private double overprintMode = 0;
+    private int overprintMode = 0;
     //black generation
     //undercolor removal
     private COSBase transfer = null;
     //halftone
     private double flatness = 1.0;
     private double smoothness = 0;
-
-
-    private Matrix textMatrix = null;
-    private Matrix textLineMatrix = null;
 
     /**
      * Constructor with a given page size to initialize the clipping path.
@@ -232,30 +230,6 @@ public class PDGraphicsState implements Cloneable
      * Get the value of the non-stroke alpha constant property.
      *
      * @return The value of the non-stroke alpha constant parameter.
-     * @deprecated use {@link #getNonStrokeAlphaConstant() }
-     */
-    @Deprecated
-    public double getNonStrokeAlphaConstants()
-    {
-        return nonStrokingAlphaConstant;
-    }
-
-    /**
-     * set the value of the non-stroke alpha constant property.
-     *
-     * @param value The value of the non-stroke alpha constant parameter.
-     * @deprecated use {@link #setNonStrokeAlphaConstant(double) }
-     */
-    @Deprecated
-    public void setNonStrokeAlphaConstants(double value)
-    {
-        nonStrokingAlphaConstant = value;
-    }
-
-    /**
-     * Get the value of the non-stroke alpha constant property.
-     *
-     * @return The value of the non-stroke alpha constant parameter.
      */
     public double getNonStrokeAlphaConstant()
     {
@@ -306,7 +280,7 @@ public class PDGraphicsState implements Cloneable
     /**
      * Sets the current soft mask
      *
-     * @param softMask
+     * @param softMask soft mask
      */
     public void setSoftMask(PDSoftMask softMask)
     {
@@ -326,10 +300,15 @@ public class PDGraphicsState implements Cloneable
     /**
      * Sets the blend mode in the current graphics state
      *
-     * @param blendMode
+     * @param blendMode blend mode
+     * @throws IllegalArgumentException if blendMode is null.
      */
     public void setBlendMode(BlendMode blendMode)
     {
+        if (blendMode == null)
+        {
+            throw new IllegalArgumentException("blendMode parameter cannot be null");
+        }
         this.blendMode = blendMode;
     }
 
@@ -378,7 +357,7 @@ public class PDGraphicsState implements Cloneable
      *
      * @return The value of the overprint mode parameter.
      */
-    public double getOverprintMode()
+    public int getOverprintMode()
     {
         return overprintMode;
     }
@@ -388,7 +367,7 @@ public class PDGraphicsState implements Cloneable
      *
      * @param value The value of the overprint mode parameter.
      */
-    public void setOverprintMode(double value)
+    public void setOverprintMode(int value)
     {
         overprintMode = value;
     }
@@ -615,11 +594,9 @@ public class PDGraphicsState implements Cloneable
         if (!isClippingPathDirty)
         {
             // shallow copy
-            clippingPaths = new ArrayList<Path>(clippingPaths);
-
+            clippingPaths = new ArrayList<>(clippingPaths);
             isClippingPathDirty = true;
         }
-
         // add path to current clipping paths, combined later (see getCurrentClippingPath)
         clippingPaths.add(clonePath ? new Path(path) : path);
     }
@@ -641,6 +618,7 @@ public class PDGraphicsState implements Cloneable
      */
     public Region getCurrentClippingPath()
     {
+        // If there is just a single clipping path, no intersections are needed.
         if (clippingPaths.size() == 1)
         {
             // If there is just a single clipping path, no intersections are needed.
@@ -668,8 +646,7 @@ public class PDGraphicsState implements Cloneable
     }
 
     /**
-     * This will get the current clipping path, as one or more individual paths. Do not modify the
-     * list or the paths!
+     * This will get the current clipping path, as one or more individual paths. Do not modify the list or the paths!
      *
      * @return The current clipping paths.
      */
@@ -678,9 +655,17 @@ public class PDGraphicsState implements Cloneable
         return clippingPaths;
     }
 
-//    public Composite getStrokingJavaComposite() TODO: PdfBox-Android
+    //TODO: implement getStrokingJavaComposite and getNonStrokingJavaComposite with BlendComposite
 
-//    public Composite getNonStrokingJavaComposite() TODO: PdfBox-Android
+    /*public Composite getStrokingJavaComposite()
+    {
+        return BlendComposite.getInstance(blendMode, (float) alphaConstant);
+    }
+
+    public Composite getNonStrokingJavaComposite()
+    {
+        return BlendComposite.getInstance(blendMode, (float) nonStrokingAlphaConstant);
+    }*/
 
     /**
      * This will get the transfer function.

@@ -235,6 +235,12 @@ public class PDDocumentCatalog implements COSObjectable
      */
     public void setThreads(List<PDThread> threads)
     {
+        // PDFBOX-6186: avoid IllegalArgumentException when threads is null
+        if (threads == null)
+        {
+            root.removeItem(COSName.THREADS);
+            return;
+        }
         root.setItem(COSName.THREADS, COSArrayList.converterToCOSArray(threads));
     }
 

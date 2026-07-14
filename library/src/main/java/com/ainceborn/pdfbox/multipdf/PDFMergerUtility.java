@@ -1350,7 +1350,8 @@ public class PDFMergerUtility
                 boolean skip = false;
                 for (PDOutputIntent dstOI : dstOutputIntents)
                 {
-                    if (dstOI.getOutputConditionIdentifier().equals(srcOCI))
+                    // PDFBOX-6173: reverse to avoid NPE
+                    if (srcOCI.equals(dstOI.getOutputConditionIdentifier()))
                     {
                         skip = true;
                         break;

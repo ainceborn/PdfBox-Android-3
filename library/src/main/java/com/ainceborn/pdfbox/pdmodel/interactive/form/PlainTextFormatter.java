@@ -19,50 +19,23 @@ package com.ainceborn.pdfbox.pdmodel.interactive.form;
 import java.io.IOException;
 import java.util.List;
 
+import com.ainceborn.pdfbox.pdmodel.PDAppearanceContentStream;
 import com.ainceborn.pdfbox.pdmodel.PDPageContentStream;
+import com.ainceborn.pdfbox.pdmodel.interactive.TextAlign;
 import com.ainceborn.pdfbox.pdmodel.interactive.form.PlainText.Line;
 import com.ainceborn.pdfbox.pdmodel.interactive.form.PlainText.Paragraph;
 import com.ainceborn.pdfbox.pdmodel.interactive.form.PlainText.TextAttribute;
 import com.ainceborn.pdfbox.pdmodel.interactive.form.PlainText.Word;
 
 /**
- * TextFormatter to handle plain text formatting.
+ * TextFormatter to handle plain text formatting for annotation rectangles.
  *
  * The text formatter will take a single value or an array of values which
  * are treated as paragraphs.
  */
 
-class PlainTextFormatter
+public class PlainTextFormatter
 {
-
-    enum TextAlign
-    {
-        LEFT(0), CENTER(1), RIGHT(2), JUSTIFY(4);
-
-        private final int alignment;
-
-        private TextAlign(int alignment)
-        {
-            this.alignment = alignment;
-        }
-
-        int getTextAlign()
-        {
-            return alignment;
-        }
-
-        public static TextAlign valueOf(int alignment)
-        {
-            for (TextAlign textAlignment : TextAlign.values())
-            {
-                if (textAlignment.getTextAlign() == alignment)
-                {
-                    return textAlignment;
-                }
-            }
-            return TextAlign.LEFT;
-        }
-    }
 
     /**
      * The scaling factor for font units to PDF units
@@ -73,18 +46,18 @@ class PlainTextFormatter
     private final boolean wrapLines;
     private final float width;
 
-    private final PDPageContentStream contents;
+    private final PDAppearanceContentStream contents;
     private final PlainText textContent;
     private final TextAlign textAlignment;
 
     private float horizontalOffset;
     private float verticalOffset;
 
-    static class Builder
+    public static class Builder
     {
 
         // required parameters
-        private PDPageContentStream contents;
+        private final PDAppearanceContentStream contents;
 
         // optional parameters
         private AppearanceStyle appearanceStyle;
@@ -98,56 +71,56 @@ class PlainTextFormatter
         private float horizontalOffset = 0f;
         private float verticalOffset = 0f;
 
-        Builder(PDPageContentStream contents)
+        public Builder(PDAppearanceContentStream contents)
         {
             this.contents = contents;
         }
 
-        Builder style(AppearanceStyle appearanceStyle)
+        public Builder style(AppearanceStyle appearanceStyle)
         {
             this.appearanceStyle = appearanceStyle;
             return this;
         }
 
-        Builder wrapLines(boolean wrapLines)
+        public Builder wrapLines(boolean wrapLines)
         {
             this.wrapLines = wrapLines;
             return this;
         }
 
-        Builder width(float width)
+        public Builder width(float width)
         {
             this.width = width;
             return this;
         }
 
-        Builder textAlign(int alignment)
+        public Builder textAlign(int alignment)
         {
             this.textAlignment  = TextAlign.valueOf(alignment);
             return this;
         }
 
-        Builder textAlign(TextAlign alignment)
+        public Builder textAlign(TextAlign alignment)
         {
             this.textAlignment  = alignment;
             return this;
         }
 
 
-        Builder text(PlainText textContent)
+        public Builder text(PlainText textContent)
         {
             this.textContent  = textContent;
             return this;
         }
 
-        Builder initialOffset(float horizontalOffset, float verticalOffset)
+        public Builder initialOffset(float horizontalOffset, float verticalOffset)
         {
             this.horizontalOffset = horizontalOffset;
             this.verticalOffset = verticalOffset;
             return this;
         }
 
-        PlainTextFormatter build()
+        public PlainTextFormatter build()
         {
             return new PlainTextFormatter(this);
         }
@@ -180,9 +153,9 @@ class PlainTextFormatter
                 if (wrapLines)
                 {
                     List<Line> lines = paragraph.getLines(
-                        appearanceStyle.getFont(),
-                        appearanceStyle.getFontSize(),
-                        width
+                            appearanceStyle.getFont(),
+                            appearanceStyle.getFontSize(),
+                            width
                     );
                     processLines(lines, isFirstParagraph);
                     isFirstParagraph = false;
@@ -193,7 +166,7 @@ class PlainTextFormatter
 
 
                     float lineWidth = appearanceStyle.getFont().getStringWidth(paragraph.getText()) *
-                        appearanceStyle.getFontSize() / FONTSCALE;
+                            appearanceStyle.getFontSize() / FONTSCALE;
 
                     if (lineWidth < width)
                     {
@@ -219,9 +192,9 @@ class PlainTextFormatter
     }
 
     /**
-     * Process lines for output. 
+     * Process lines for output.
      *
-     * Process lines for an individual paragraph and generate the 
+     * Process lines for an individual paragraph and generate the
      * commands for the content stream to show the text.
      *
      * @param lines the lines to process.
@@ -229,7 +202,7 @@ class PlainTextFormatter
      */
     private void processLines(List<Line> lines, boolean isFirstParagraph) throws IOException
     {
-        float wordWidth = 0f;
+        float wordWidth;
 
         float lastPos = 0f;
         float startOffset = 0f;

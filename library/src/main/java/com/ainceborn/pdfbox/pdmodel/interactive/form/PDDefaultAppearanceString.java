@@ -29,6 +29,7 @@ import com.ainceborn.pdfbox.cos.COSName;
 import com.ainceborn.pdfbox.cos.COSNumber;
 import com.ainceborn.pdfbox.cos.COSString;
 import com.ainceborn.pdfbox.pdfparser.PDFStreamParser;
+import com.ainceborn.pdfbox.pdmodel.PDAppearanceContentStream;
 import com.ainceborn.pdfbox.pdmodel.PDPageContentStream;
 import com.ainceborn.pdfbox.pdmodel.PDResources;
 import com.ainceborn.pdfbox.pdmodel.font.PDFont;
@@ -75,7 +76,7 @@ class PDDefaultAppearanceString
         if (defaultAppearance == null)
         {
             throw new IllegalArgumentException("/DA is a required entry. "
-                + "Please set a default appearance first.");
+                    + "Please set a default appearance first.");
         }
 
         if (defaultResources == null)
@@ -95,7 +96,7 @@ class PDDefaultAppearanceString
      */
     private void processAppearanceStringOperators(byte[] content) throws IOException
     {
-        List<COSBase> arguments = new ArrayList<COSBase>();
+        List<COSBase> arguments = new ArrayList<>();
         PDFStreamParser parser = new PDFStreamParser(content);
         Object token = parser.parseNextToken();
         while (token != null)
@@ -103,7 +104,7 @@ class PDDefaultAppearanceString
             if (token instanceof Operator)
             {
                 processOperator((Operator) token, arguments);
-                arguments = new ArrayList<COSBase>();
+                arguments = new ArrayList<>();
             }
             else
             {
@@ -122,23 +123,18 @@ class PDDefaultAppearanceString
      */
     private void processOperator(Operator operator, List<COSBase> operands) throws IOException
     {
-        String name = operator.getName();
-
-        if (OperatorName.SET_FONT_AND_SIZE.equals(name))
+        switch (operator.getName())
         {
-            processSetFont(operands);
-        }
-        else if (OperatorName.NON_STROKING_GRAY.equals(name))
-        {
-            processSetFontColor(operands);
-        }
-        else if (OperatorName.NON_STROKING_RGB.equals(name))
-        {
-            processSetFontColor(operands);
-        }
-        else if (OperatorName.NON_STROKING_CMYK.equals(name))
-        {
-            processSetFontColor(operands);
+            case OperatorName.SET_FONT_AND_SIZE:
+                processSetFont(operands);
+                break;
+            case OperatorName.NON_STROKING_GRAY:
+            case OperatorName.NON_STROKING_RGB:
+            case OperatorName.NON_STROKING_CMYK:
+                processSetFontColor(operands);
+                break;
+            default:
+                break;
         }
     }
 
@@ -286,12 +282,16 @@ class PDDefaultAppearanceString
     }
 
     /**
-     * Writes the DA string to the given content stream.
+     * Write font name, font size and color from the /DA string to the given content stream.
+     *
+     * @param contents The content stream.
+     * @param zeroFontSize The calculated font size to use if the /DA string has a size 0
+     * (autosize). Otherwise the size from the /DA string is used.
      */
-    void writeTo(PDPageContentStream contents, float zeroFontSize) throws IOException
+    void writeTo(PDAppearanceContentStream contents, float zeroFontSize) throws IOException
     {
         float fontSize = getFontSize();
-        if (fontSize == 0)
+        if (Float.compare(fontSize, 0) == 0)
         {
             fontSize = zeroFontSize;
         }

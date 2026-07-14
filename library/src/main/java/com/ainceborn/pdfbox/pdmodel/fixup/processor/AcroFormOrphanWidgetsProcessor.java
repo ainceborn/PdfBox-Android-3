@@ -85,18 +85,11 @@ public class AcroFormOrphanWidgetsProcessor extends AbstractProcessor
          return;
       }
 
-      List<PDField> fields = new ArrayList<PDField>();
-      Map<String, PDField> nonTerminalFieldsMap = new HashMap<String, PDField>();
+      List<PDField> fields = new ArrayList<>();
+      Map<String, PDField> nonTerminalFieldsMap = new HashMap<>();
       for (PDPage page : document.getPages())
       {
-         try
-         {
-            handleAnnotations(acroForm, resources, fields, page.getAnnotations(), nonTerminalFieldsMap);
-         }
-         catch (IOException ioe)
-         {
-            Log.d("PdfBox-Android", "couldn't read annotations for page " + ioe.getMessage());
-         }
+         handleAnnotations(acroForm, resources, fields, page.getAnnotations(), nonTerminalFieldsMap);
       }
 
       acroForm.setFields(fields);
@@ -111,8 +104,8 @@ public class AcroFormOrphanWidgetsProcessor extends AbstractProcessor
    }
 
    private void handleAnnotations(PDAcroForm acroForm, PDResources acroFormResources,
-       List<PDField> fields, List<PDAnnotation> annotations,
-       Map<String, PDField> nonTerminalFieldsMap)
+                                  List<PDField> fields, List<PDAnnotation> annotations,
+                                  Map<String, PDField> nonTerminalFieldsMap)
    {
       for (PDAnnotation annot : annotations)
       {
@@ -131,7 +124,11 @@ public class AcroFormOrphanWidgetsProcessor extends AbstractProcessor
             }
             else
             {
-               fields.add(PDFieldFactory.createField(acroForm, annot.getCOSObject(), null));
+               PDField field = PDFieldFactory.createField(acroForm, annot.getCOSObject(), null);
+               if (field != null)
+               {
+                  fields.add(field);
+               }
             }
          }
       }
@@ -156,7 +153,7 @@ public class AcroFormOrphanWidgetsProcessor extends AbstractProcessor
       {
          return;
       }
-      for (COSName fontName : widgetResources.getFontNames())
+      widgetResources.getFontNames().forEach(fontName ->
       {
          if (!fontName.getName().startsWith("+"))
          {
@@ -177,7 +174,7 @@ public class AcroFormOrphanWidgetsProcessor extends AbstractProcessor
          {
             Log.d("PdfBox-Android", "font resource for widget was a subsetted font - ignored: " + fontName.getName());
          }
-      }
+      });
    }
 
    /*
@@ -209,6 +206,7 @@ public class AcroFormOrphanWidgetsProcessor extends AbstractProcessor
       return null;
    }
 
+
    /*
     *  Lookup the font used in the default appearance and if this is
     *  not available try to find a suitable font and use that.
@@ -223,7 +221,7 @@ public class AcroFormOrphanWidgetsProcessor extends AbstractProcessor
       String daString = field.getDefaultAppearance();
       if (daString.startsWith("/") && daString.length() > 1)
       {
-         COSName fontName = COSName.getPDFName(daString.substring(1, daString.indexOf(" ")));
+         COSName fontName = COSName.getPDFName(daString.substring(1, daString.indexOf(' ')));
          try
          {
             if (defaultResources.getFont(fontName) == null)

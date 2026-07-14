@@ -25,6 +25,7 @@ import com.ainceborn.pdfbox.cos.COSNumber;
 import com.ainceborn.pdfbox.cos.COSStream;
 import com.ainceborn.pdfbox.cos.COSString;
 import com.ainceborn.pdfbox.pdmodel.PDResources;
+import com.ainceborn.pdfbox.pdmodel.interactive.annotation.PDAnnotationWidget;
 
 /**
  * Base class for fields which use "Variable Text".
@@ -107,7 +108,7 @@ public abstract class PDVariableText extends PDTerminalField
     /**
      * Set the default appearance.
      *
-     * This will set the local default appearance for the variable text field only, not 
+     * This will set the local default appearance for the variable text field only, not
      * affecting a default appearance in the parent hierarchy.
      *
      * Providing null as the value will remove the local default appearance.
@@ -127,6 +128,19 @@ public abstract class PDVariableText extends PDTerminalField
     public void setDefaultAppearance(String daValue)
     {
         getCOSObject().setString(COSName.DA, daValue);
+
+        // PDFBOX-5797: Sejda files have a /DA entry in kid widgets
+        if (getCOSObject().containsKey(COSName.KIDS))
+        {
+            for (PDAnnotationWidget widget : getWidgets())
+            {
+                COSDictionary widgetDict = widget.getCOSObject();
+                if (widgetDict.containsKey(COSName.DA))
+                {
+                    widgetDict.setString(COSName.DA, daValue);
+                }
+            }
+        }
     }
 
     /**
@@ -139,8 +153,7 @@ public abstract class PDVariableText extends PDTerminalField
      */
     public String getDefaultStyleString()
     {
-        COSString defaultStyleString = (COSString) getCOSObject().getDictionaryObject(COSName.DS);
-        return defaultStyleString.getString();
+        return getCOSObject().getString(COSName.DS);
     }
 
     /**
@@ -201,9 +214,8 @@ public abstract class PDVariableText extends PDTerminalField
      * Get the fields rich text value.
      *
      * @return the rich text value string
-     * @throws IOException if the field dictionary entry is not a text type
      */
-    public String getRichTextValue() throws IOException
+    public String getRichTextValue()
     {
         return getStringOrStream(getInheritableAttribute(COSName.RV));
     }
@@ -245,11 +257,7 @@ public abstract class PDVariableText extends PDTerminalField
      */
     protected final String getStringOrStream(COSBase base)
     {
-        if (base == null)
-        {
-            return "";
-        }
-        else if (base instanceof COSString)
+        if (base instanceof COSString)
         {
             return ((COSString)base).getString();
         }
@@ -257,9 +265,6 @@ public abstract class PDVariableText extends PDTerminalField
         {
             return ((COSStream)base).toTextString();
         }
-        else
-        {
-            return "";
-        }
+        return "";
     }
 }

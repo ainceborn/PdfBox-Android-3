@@ -50,7 +50,7 @@ public abstract class PDChoice extends PDVariableText
      *
      * @param acroForm The acroform.
      */
-    public PDChoice(PDAcroForm acroForm)
+    protected PDChoice(PDAcroForm acroForm)
     {
         super(acroForm);
         getCOSObject().setItem(COSName.FT, COSName.CH);
@@ -75,9 +75,9 @@ public abstract class PDChoice extends PDVariableText
      * For a choice field the options array can either be an array
      * of text strings or an array of a two-element arrays.<br>
      * The method always only returns either the text strings or,
-     * in case of two-element arrays, an array of the first element of 
+     * in case of two-element arrays, an array of the first element of
      * the two-element arrays
-     * </p>   
+     * </p>
      * <p>
      * Use {@link #getOptionsExportValues()} and {@link #getOptionsDisplayValues()}
      * to get the entries of two-element arrays.
@@ -96,13 +96,13 @@ public abstract class PDChoice extends PDVariableText
      *
      * <p>
      * The Opt array specifies the list of options in the choice field either
-     * as an array of text strings representing the display value 
+     * as an array of text strings representing the display value
      * or as an array of a two-element array where the
      * first element is the export value and the second the display value.
      * </p>
      * <p>
      * To set both the export and the display value use {@link #setOptions(List, List)}
-     * </p> 
+     * </p>
      *
      * @param displayValues List containing all possible options.
      */
@@ -114,7 +114,8 @@ public abstract class PDChoice extends PDVariableText
             {
                 Collections.sort(displayValues);
             }
-            getCOSObject().setItem(COSName.OPT, COSArrayList.convertStringListToCOSStringCOSArray(displayValues));
+            getCOSObject().setItem(COSName.OPT,
+                    COSArray.ofCOSStrings(displayValues));
         }
         else
         {
@@ -127,7 +128,7 @@ public abstract class PDChoice extends PDVariableText
      *
      * <p>
      * This will set both, the export value and the display value
-     * of the choice field. If either one of the parameters is null or an 
+     * of the choice field. If either one of the parameters is null or an
      * empty list is supplied the options will
      * be removed.
      * </p>
@@ -147,7 +148,7 @@ public abstract class PDChoice extends PDVariableText
             if (exportValues.size() != displayValues.size())
             {
                 throw new IllegalArgumentException(
-                    "The number of entries for exportValue and displayValue shall be the same.");
+                        "The number of entries for exportValue and displayValue shall be the same.");
             }
             else
             {
@@ -162,8 +163,9 @@ public abstract class PDChoice extends PDVariableText
                 for (int i = 0; i<exportValues.size(); i++)
                 {
                     COSArray entry = new COSArray();
-                    entry.add(new COSString(keyValuePairs.get(i).getKey()));
-                    entry.add(new COSString(keyValuePairs.get(i).getValue()));
+                    KeyValue pair = keyValuePairs.get(i);
+                    entry.add(new COSString(pair.getKey()));
+                    entry.add(new COSString(pair.getValue()));
                     options.add(entry);
                 }
                 getCOSObject().setItem(COSName.OPT, options);
@@ -181,7 +183,7 @@ public abstract class PDChoice extends PDVariableText
      * <p>
      * For options with an array of text strings the display value and export value
      * are the same.<br>
-     * For options with an array of two-element arrays the display value is the 
+     * For options with an array of two-element arrays the display value is the
      * second entry in the two-element array.
      * </p>
      *
@@ -199,7 +201,7 @@ public abstract class PDChoice extends PDVariableText
      * <p>
      * For options with an array of text strings the display value and export value
      * are the same.<br>
-     * For options with an array of two-element arrays the export value is the 
+     * For options with an array of two-element arrays the export value is the
      * first entry in the two-element array.
      * </p>
      *
@@ -208,6 +210,18 @@ public abstract class PDChoice extends PDVariableText
     public List<String> getOptionsExportValues()
     {
         return getOptions();
+    }
+
+    /**
+     * This will check if the field has dedicated display and export values.
+     *
+     * @return true if export and display values are different
+     */
+    public boolean hasSeparateExportAndDisplayValues()
+    {
+        List<String> exportValues = getOptionsExportValues();
+        List<String> displayValues = getOptionsDisplayValues();
+        return !exportValues.equals(displayValues);
     }
 
     /**
@@ -223,12 +237,8 @@ public abstract class PDChoice extends PDVariableText
      */
     public List<Integer> getSelectedOptionsIndex()
     {
-        COSBase value = getCOSObject().getDictionaryObject(COSName.I);
-        if (value != null)
-        {
-            return COSArrayList.convertIntegerCOSArrayToList((COSArray) value);
-        }
-        return Collections.emptyList();
+        COSArray value = getCOSObject().getCOSArray(COSName.I);
+        return value != null ? value.toCOSNumberIntegerList() : Collections.emptyList();
     }
 
     /**
@@ -251,9 +261,9 @@ public abstract class PDChoice extends PDVariableText
             if (!isMultiSelect())
             {
                 throw new IllegalArgumentException(
-                    "Setting the indices is not allowed for choice fields not allowing multiple selections.");
+                        "Setting the indices is not allowed for choice fields not allowing multiple selections.");
             }
-            getCOSObject().setItem(COSName.I, COSArrayList.converterToCOSArray(values));
+            getCOSObject().setItem(COSName.I, COSArray.ofCOSIntegers(values));
         }
         else
         {
@@ -267,7 +277,7 @@ public abstract class PDChoice extends PDVariableText
      * <p>
      * If set, the field’s option items shall be sorted alphabetically.
      * The sorting has to be done when writing the PDF. PDF Readers are supposed to
-     * display the options in the order in which they occur in the Opt array. 
+     * display the options in the order in which they occur in the Opt array.
      * </p>
      *
      * @return true if the options are sorted.
@@ -369,8 +379,7 @@ public abstract class PDChoice extends PDVariableText
     }
 
     /**
-     * Sets the selected value of this field. It also tries to update the visual appearance, unless
-     * {@link PDAcroForm#getNeedAppearances()} is true.
+     * Set the selected value of this field, and try to update the visual appearance.
      *
      * @param value The name of the selected item.
      * @throws IOException if the value could not be set
@@ -390,9 +399,8 @@ public abstract class PDChoice extends PDVariableText
      * Sets the default value of this field.
      *
      * @param value The name of the selected item.
-     * @throws IOException if the value could not be set
      */
-    public void setDefaultValue(String value) throws IOException
+    public void setDefaultValue(String value)
     {
         getCOSObject().setString(COSName.DV, value);
     }
@@ -411,12 +419,14 @@ public abstract class PDChoice extends PDVariableText
             {
                 throw new IllegalArgumentException("The list box does not allow multiple selections.");
             }
-            if (!getOptions().containsAll(values))
+            List<String> options = getOptions();
+            if (!options.containsAll(values))
             {
                 throw new IllegalArgumentException("The values are not contained in the selectable options.");
             }
-            getCOSObject().setItem(COSName.V, COSArrayList.convertStringListToCOSStringCOSArray(values));
-            updateSelectedOptionsIndex(values);
+            getCOSObject().setItem(COSName.V,
+                    COSArray.ofCOSStrings(values));
+            updateSelectedOptionsIndex(values, options);
         }
         else
         {
@@ -456,13 +466,11 @@ public abstract class PDChoice extends PDVariableText
         COSBase value = getCOSObject().getDictionaryObject(name);
         if (value instanceof COSString)
         {
-            List<String> array = new ArrayList<String>();
-            array.add(((COSString) value).getString());
-            return array;
+            return Collections.singletonList(((COSString) value).getString());
         }
         else if (value instanceof COSArray)
         {
-            return COSArrayList.convertCOSStringCOSArrayToList((COSArray)value);
+            return ((COSArray) value).toCOSStringStringList();
         }
         return Collections.emptyList();
     }
@@ -476,10 +484,9 @@ public abstract class PDChoice extends PDVariableText
     /**
      * Update the 'I' key based on values set.
      */
-    private void updateSelectedOptionsIndex(List<String> values)
+    private void updateSelectedOptionsIndex(List<String> values, List<String> options)
     {
-        List<String> options = getOptions();
-        List<Integer> indices = new ArrayList<Integer>();
+        List<Integer> indices = new ArrayList<>(values.size());
 
         for (String value : values)
         {
