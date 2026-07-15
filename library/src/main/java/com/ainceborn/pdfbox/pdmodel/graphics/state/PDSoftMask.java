@@ -24,6 +24,8 @@ import com.ainceborn.pdfbox.cos.COSArray;
 import com.ainceborn.pdfbox.cos.COSBase;
 import com.ainceborn.pdfbox.cos.COSDictionary;
 import com.ainceborn.pdfbox.cos.COSName;
+import com.ainceborn.pdfbox.pdmodel.PDResources;
+import com.ainceborn.pdfbox.pdmodel.ResourceCache;
 import com.ainceborn.pdfbox.pdmodel.common.COSObjectable;
 import com.ainceborn.pdfbox.pdmodel.common.function.PDFunction;
 import com.ainceborn.pdfbox.pdmodel.graphics.PDXObject;
@@ -41,8 +43,23 @@ public final class PDSoftMask implements COSObjectable
      * Creates a new soft mask.
      *
      * @param dictionary SMask
+     *
+     * @return the newly created instance of PDSoftMask
      */
     public static PDSoftMask create(COSBase dictionary)
+    {
+        return create(dictionary, null);
+    }
+
+    /**
+     * Creates a new soft mask.
+     *
+     * @param dictionary SMask
+     * @param resourceCache Resource cache, may be null.
+     *
+     * @return the newly created instance of PDSoftMask
+     */
+    public static PDSoftMask create(COSBase dictionary, ResourceCache resourceCache)
     {
         if (dictionary instanceof COSName)
         {
@@ -58,7 +75,7 @@ public final class PDSoftMask implements COSObjectable
         }
         else if (dictionary instanceof COSDictionary)
         {
-            return new PDSoftMask((COSDictionary) dictionary);
+            return new PDSoftMask((COSDictionary) dictionary, resourceCache);
         }
         else
         {
@@ -68,6 +85,7 @@ public final class PDSoftMask implements COSObjectable
     }
 
     private final COSDictionary dictionary;
+    private final ResourceCache resourceCache;
     private COSName subType = null;
     private PDTransparencyGroup group = null;
     private COSArray backdropColor = null;
@@ -85,7 +103,19 @@ public final class PDSoftMask implements COSObjectable
      */
     public PDSoftMask(COSDictionary dictionary)
     {
+        this(dictionary, null);
+    }
+
+    /**
+     * Creates a new soft mask.
+     *
+     * @param dictionary The soft mask dictionary.
+     * @param resourceCache Resource cache, may be null.
+     */
+    public PDSoftMask(COSDictionary dictionary, ResourceCache resourceCache)
+    {
         this.dictionary = dictionary;
+        this.resourceCache = resourceCache;
     }
 
     @Override
@@ -96,12 +126,14 @@ public final class PDSoftMask implements COSObjectable
 
     /**
      * Returns the subtype of the soft mask (Alpha, Luminosity) - S entry
+     *
+     * @return the subtype of the soft mask
      */
     public COSName getSubType()
     {
         if (subType == null)
         {
-            subType = (COSName) getCOSObject().getDictionaryObject(COSName.S);
+            subType = getCOSObject().getCOSName(COSName.S);
         }
         return subType;
     }
@@ -110,7 +142,7 @@ public final class PDSoftMask implements COSObjectable
      * Returns the G entry of the soft mask object
      *
      * @return form containing the transparency group
-     * @throws IOException
+     * @throws IOException if the group could not be read
      */
     public PDTransparencyGroup getGroup() throws IOException
     {
@@ -119,7 +151,8 @@ public final class PDSoftMask implements COSObjectable
             COSBase cosGroup = getCOSObject().getDictionaryObject(COSName.G);
             if (cosGroup != null)
             {
-                PDXObject x = PDXObject.createXObject(cosGroup, null);
+                PDResources resources = new PDResources(new COSDictionary(), resourceCache);
+                PDXObject x = PDXObject.createXObject(cosGroup, resources);
                 if (x instanceof PDTransparencyGroup)
                 {
                     group = (PDTransparencyGroup) x;
@@ -131,18 +164,22 @@ public final class PDSoftMask implements COSObjectable
 
     /**
      * Returns the backdrop color.
+     *
+     * @return the backdrop color
      */
     public COSArray getBackdropColor()
     {
         if (backdropColor == null)
         {
-            backdropColor = (COSArray) getCOSObject().getDictionaryObject(COSName.BC);
+            backdropColor = getCOSObject().getCOSArray(COSName.BC);
         }
         return backdropColor;
     }
 
     /**
      * Returns the transfer function.
+     *
+     * @return the transfer function
      * @throws IOException If we are unable to create the PDFunction object.
      */
     public PDFunction getTransferFunction() throws IOException
@@ -161,7 +198,7 @@ public final class PDSoftMask implements COSObjectable
     /**
      * Set the CTM that is valid at the time the ExtGState was activated.
      *
-     * @param ctm
+     * @param ctm the transformation matrix
      */
     void setInitialTransformationMatrix(Matrix ctm)
     {
@@ -171,7 +208,7 @@ public final class PDSoftMask implements COSObjectable
     /**
      * Returns the CTM at the time the ExtGState was activated.
      *
-     * @return the CTM at the time the ExtGState was activated.
+     * @return the transformation matrix
      */
     public Matrix getInitialTransformationMatrix()
     {

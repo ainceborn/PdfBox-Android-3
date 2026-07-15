@@ -26,6 +26,7 @@ import com.ainceborn.pdfbox.cos.COSDictionary;
 import com.ainceborn.pdfbox.cos.COSFloat;
 import com.ainceborn.pdfbox.cos.COSName;
 import com.ainceborn.pdfbox.cos.COSNumber;
+import com.ainceborn.pdfbox.pdmodel.ResourceCache;
 import com.ainceborn.pdfbox.pdmodel.common.COSObjectable;
 import com.ainceborn.pdfbox.pdmodel.graphics.PDFontSetting;
 import com.ainceborn.pdfbox.pdmodel.graphics.PDLineDashPattern;
@@ -39,6 +40,7 @@ import com.ainceborn.pdfbox.pdmodel.graphics.blend.BlendMode;
 public class PDExtendedGraphicsState implements COSObjectable
 {
     private final COSDictionary dict;
+    private final ResourceCache cache;
 
     /**
      * Default constructor, creates blank graphics state.
@@ -47,6 +49,7 @@ public class PDExtendedGraphicsState implements COSObjectable
     {
         dict = new COSDictionary();
         dict.setItem(COSName.TYPE, COSName.EXT_G_STATE);
+        cache = null;
     }
 
     /**
@@ -56,7 +59,19 @@ public class PDExtendedGraphicsState implements COSObjectable
      */
     public PDExtendedGraphicsState(COSDictionary dictionary)
     {
+        this(dictionary, null);
+    }
+
+    /**
+     * Create a graphics state from an existing dictionary.
+     *
+     * @param dictionary The existing graphics state.
+     * @param resourceCache Resource cache, may be null.
+     */
+    public PDExtendedGraphicsState(COSDictionary dictionary, ResourceCache resourceCache)
+    {
         dict = dictionary;
+        cache = resourceCache;
     }
 
     /**
@@ -96,7 +111,8 @@ public class PDExtendedGraphicsState implements COSObjectable
             }
             else if( key.equals( COSName.OPM ) )
             {
-                gs.setOverprintMode( defaultIfNull( getOverprintMode(), 0 ) );
+                Integer overprintMode = getOverprintMode();
+                gs.setOverprintMode(overprintMode != null ? overprintMode : 0);
             }
             else if( key.equals( COSName.OP ) )
             {
@@ -162,7 +178,7 @@ public class PDExtendedGraphicsState implements COSObjectable
             {
                 if (dict.containsKey(COSName.TR2))
                 {
-                    // "If both TR and TR2 are present in the same graphics state parameter dictionary, 
+                    // "If both TR and TR2 are present in the same graphics state parameter dictionary,
                     // TR2 shall take precedence."
                     continue;
                 }
@@ -309,11 +325,11 @@ public class PDExtendedGraphicsState implements COSObjectable
     public PDLineDashPattern getLineDashPattern()
     {
         PDLineDashPattern retval = null;
-        COSBase dp = dict.getDictionaryObject( COSName.D );
-        if( dp instanceof COSArray  && ((COSArray)dp).size() == 2)
+        COSArray dp = dict.getCOSArray(COSName.D);
+        if (dp != null && dp.size() == 2)
         {
-            COSBase dashArray = ((COSArray)dp).getObject(0);
-            COSBase phase = ((COSArray)dp).getObject(1);
+            COSBase dashArray = dp.getObject(0);
+            COSBase phase = dp.getObject(1);
             if (dashArray instanceof COSArray && phase instanceof COSNumber)
             {
                 retval = new PDLineDashPattern((COSArray) dashArray, ((COSNumber) phase).intValue());
@@ -406,18 +422,24 @@ public class PDExtendedGraphicsState implements COSObjectable
      *
      * @return The overprint control mode or null if one has not been set.
      */
-    public Float getOverprintMode()
+    public Integer getOverprintMode()
     {
-        return getFloatItem(COSName.OPM);
+        Integer retval = null;
+        COSBase base = dict.getDictionaryObject(COSName.OPM);
+        if (base instanceof COSNumber)
+        {
+            COSNumber value = (COSNumber) base;
+            retval = value.intValue();
+        }
+        return retval;
     }
 
     /**
      * This will set the overprint mode(OPM).
      *
-     * @param overprintMode The overprint mode. It will be truncated to an integer. This parameter
-     * will be an integer in version 3.
+     * @param overprintMode The overprint mode
      */
-    public void setOverprintMode(Float overprintMode)
+    public void setOverprintMode(Integer overprintMode)
     {
         if (overprintMode == null)
         {
@@ -425,7 +447,7 @@ public class PDExtendedGraphicsState implements COSObjectable
         }
         else
         {
-            dict.setInt(COSName.OPM, overprintMode.intValue());
+            dict.setInt(COSName.OPM, overprintMode);
         }
     }
 
@@ -436,14 +458,8 @@ public class PDExtendedGraphicsState implements COSObjectable
      */
     public PDFontSetting getFontSetting()
     {
-        PDFontSetting setting = null;
-        COSBase base = dict.getDictionaryObject(COSName.FONT);
-        if (base instanceof COSArray)
-        {
-            COSArray font = (COSArray) base;
-            setting = new PDFontSetting(font);
-        }
-        return setting;
+        COSArray font = dict.getCOSArray(COSName.FONT);
+        return font != null ? new PDFontSetting(font) : null;
     }
 
     /**
@@ -593,11 +609,11 @@ public class PDExtendedGraphicsState implements COSObjectable
     /**
      * Set the blending mode.
      *
-     * @param bm
+     * @param bm blend mode
      */
     public void setBlendMode(BlendMode bm)
     {
-        dict.setItem(COSName.BM, BlendMode.getCOSName(bm));
+        dict.setItem(COSName.BM, bm.getCOSName());
     }
 
     /**
@@ -607,11 +623,8 @@ public class PDExtendedGraphicsState implements COSObjectable
      */
     public PDSoftMask getSoftMask()
     {
-        if (!dict.containsKey(COSName.SMASK))
-        {
-            return null;
-        }
-        return PDSoftMask.create(dict.getDictionaryObject(COSName.SMASK));
+        COSBase smask = dict.getDictionaryObject(COSName.SMASK);
+        return smask == null ? null : PDSoftMask.create(smask, cache);
     }
 
     /**
@@ -646,6 +659,7 @@ public class PDExtendedGraphicsState implements COSObjectable
     private Float getFloatItem( COSName key )
     {
         Float retval = null;
+
         COSBase base = dict.getDictionaryObject(key);
         if (base instanceof COSNumber)
         {

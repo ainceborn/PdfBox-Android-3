@@ -658,6 +658,12 @@ public class PDPage implements COSObjectable, PDContentStream
      */
     public void setThreadBeads(List<PDThreadBead> beads)
     {
+        // PDFBOX-6186: avoid NPE when beads is null
+        if (beads == null)
+        {
+            page.removeItem(COSName.B);
+            return;
+        }
         page.setItem(COSName.B, new COSArray(beads));
     }
 
@@ -747,7 +753,7 @@ public class PDPage implements COSObjectable, PDContentStream
      *
      * @throws IOException If there is an error while creating the annotation list.
      */
-    public List<PDAnnotation> getAnnotations() throws IOException
+    public List<PDAnnotation> getAnnotations()
     {
         return getAnnotations(annotation -> true);
     }
@@ -761,7 +767,7 @@ public class PDPage implements COSObjectable, PDContentStream
      *
      * @throws IOException If there is an error while creating the annotation list.
      */
-    public List<PDAnnotation> getAnnotations(AnnotationFilter annotationFilter) throws IOException
+    public List<PDAnnotation> getAnnotations(AnnotationFilter annotationFilter)
     {
         COSArray annots = page.getCOSArray(COSName.ANNOTS);
         if (annots == null)
@@ -777,10 +783,18 @@ public class PDPage implements COSObjectable, PDContentStream
             {
                 continue;
             }
-            PDAnnotation createdAnnotation = PDAnnotation.createAnnotation(item);
-            if (annotationFilter.accept(createdAnnotation))
+            try
             {
-                actuals.add(createdAnnotation);
+                // PDFBOX-6206: skip and log bad annotations when rendering
+                PDAnnotation createdAnnotation = PDAnnotation.createAnnotation(item);
+                if (annotationFilter.accept(createdAnnotation))
+                {
+                    actuals.add(createdAnnotation);
+                }
+            }
+            catch (IOException ex)
+            {
+                Log.e(TAG, ex.getMessage(), ex);
             }
         }
         return new COSArrayList<>(actuals, annots);
