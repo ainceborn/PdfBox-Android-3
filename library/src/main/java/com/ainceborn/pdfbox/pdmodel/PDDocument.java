@@ -992,6 +992,52 @@ public class PDDocument implements Closeable
         }
     }
 
+    public void saveCurrentFileChanges(File file, CompressParameters compressParameters) throws IOException {
+        // Write to a temp file first, then replace the target.
+        // This is necessary because the source PDF may be backed by the same file
+        // (via RandomAccessReadBufferedFile), and opening FileOutputStream on the
+        // target file would truncate it before all objects are read, resulting in
+        // empty/corrupt pages for untouched pages (PDFBOX-Android: save-to-same-file).
+        File tempFile = File.createTempFile("pdfbox_save_", ".pdf", file.getParentFile());
+        try
+        {
+            try (BufferedOutputStream bufferedOutputStream = new BufferedOutputStream(
+                    new FileOutputStream(tempFile)))
+            {
+                save(bufferedOutputStream, compressParameters);
+            }
+            // Replace target with temp file.
+            // On Android: use Os.rename() for atomic rename on same filesystem.
+            // Falls back to delete+renameTo for cross-filesystem moves.
+            try
+            {
+                android.system.Os.rename(tempFile.getAbsolutePath(), file.getAbsolutePath());
+            }
+            catch (android.system.ErrnoException e)
+            {
+                // Os.rename() failed (e.g. cross-filesystem): fallback to delete + renameTo
+                if (file.exists() && !file.delete())
+                {
+                    throw new IOException("Could not delete existing file: " + file.getAbsolutePath());
+                }
+                if (!tempFile.renameTo(file))
+                {
+                    throw new IOException("Could not rename temp file to: " + file.getAbsolutePath()
+                            + " (errno: " + e.errno + ")");
+                }
+            }
+        }
+        catch (IOException e)
+        {
+            // Clean up temp file on error
+            if (tempFile.exists())
+            {
+                tempFile.delete();
+            }
+            throw e;
+        }
+    }
+
     /**
      * Save the document to a file using the given compression.
      * <p>
