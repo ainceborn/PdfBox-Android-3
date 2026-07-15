@@ -13,7 +13,7 @@ jobs:
 
     steps:
       - name: Fetch Source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Java
         uses: actions/setup-java@v3.11.0
