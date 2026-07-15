@@ -164,14 +164,14 @@ public abstract class PDTerminalField extends PDField
     @Override
     public List<PDAnnotationWidget> getWidgets()
     {
-        List<PDAnnotationWidget> widgets = new ArrayList<PDAnnotationWidget>();
-        COSArray kids = (COSArray)getCOSObject().getDictionaryObject(COSName.KIDS);
+        List<PDAnnotationWidget> widgets = new ArrayList<>();
+        COSArray kids = getCOSObject().getCOSArray(COSName.KIDS);
         if (kids == null)
         {
             // the field itself is a widget
             widgets.add(new PDAnnotationWidget(getCOSObject()));
         }
-        else if (kids.size() > 0)
+        else if (!kids.isEmpty())
         {
             // there are multiple widgets
             for (int i = 0; i < kids.size(); i++)
@@ -193,27 +193,12 @@ public abstract class PDTerminalField extends PDField
      */
     public void setWidgets(List<PDAnnotationWidget> children)
     {
-        COSArray kidsArray = COSArrayList.converterToCOSArray(children);
+        COSArray kidsArray = new COSArray(children);
         getCOSObject().setItem(COSName.KIDS, kidsArray);
         for (PDAnnotationWidget widget : children)
         {
             widget.getCOSObject().setItem(COSName.PARENT, this);
         }
-    }
-
-    /**
-     * This will get the single associated widget that is part of this field. This occurs when the
-     * Widget is embedded in the fields dictionary. Sometimes there are multiple sub widgets
-     * associated with this field, in which case you want to use getWidgets(). If the kids entry is
-     * specified, then the first entry in that list will be returned.
-     *
-     * @return The widget that is associated with this field.
-     * @deprecated Fields may have more than one widget, call {@link #getWidgets()} instead.
-     */
-    @Deprecated
-    public PDAnnotationWidget getWidget()
-    {
-        return getWidgets().get(0);
     }
 
     /**
@@ -223,10 +208,7 @@ public abstract class PDTerminalField extends PDField
      */
     protected final void applyChange() throws IOException
     {
-        if (!getAcroForm().getNeedAppearances())
-        {
-            constructAppearances();
-        }
+        constructAppearances();
         // if we supported JavaScript we would raise a field changed event here
     }
 

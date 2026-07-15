@@ -33,7 +33,7 @@ import com.ainceborn.pdfbox.pdmodel.common.COSObjectable;
  */
 public class PDAppearanceEntry implements COSObjectable
 {
-    private COSBase entry;
+    private COSDictionary entry;
 
     private PDAppearanceEntry()
     {
@@ -42,21 +42,23 @@ public class PDAppearanceEntry implements COSObjectable
     /**
      * Constructor for reading.
      *
-     * @param entry
+     * @param entry the dictionary of the appearance entry
      */
-    public PDAppearanceEntry(COSBase entry)
+    public PDAppearanceEntry(COSDictionary entry)
     {
         this.entry = entry;
     }
 
     @Override
-    public COSBase getCOSObject()
+    public COSDictionary getCOSObject()
     {
         return entry;
     }
 
     /**
      * Returns true if this entry is an appearance subdictionary.
+     *
+     * @return true if this entry is an appearance subdictionary
      */
     public boolean isSubDictionary()
     {
@@ -65,6 +67,8 @@ public class PDAppearanceEntry implements COSObjectable
 
     /**
      * Returns true if this entry is an appearance stream.
+     *
+     * @return true if this entry is an appearance stream
      */
     public boolean isStream()
     {
@@ -73,6 +77,8 @@ public class PDAppearanceEntry implements COSObjectable
 
     /**
      * Returns the entry as an appearance stream.
+     *
+     * @return the entry as an appearance stream
      *
      * @throws IllegalStateException if this entry is not an appearance stream
      */
@@ -88,6 +94,8 @@ public class PDAppearanceEntry implements COSObjectable
     /**
      * Returns the entry as an appearance subdictionary.
      *
+     * @return the entry as an appearance subdictionary
+     *
      * @throws IllegalStateException if this entry is not an appearance subdictionary
      */
     public Map<COSName, PDAppearanceStream> getSubDictionary()
@@ -97,20 +105,18 @@ public class PDAppearanceEntry implements COSObjectable
             throw new IllegalStateException("This entry is not an appearance subdictionary");
         }
 
-        COSDictionary dict = (COSDictionary) entry;
-        Map<COSName, PDAppearanceStream> map = new HashMap<COSName, PDAppearanceStream>();
+        COSDictionary dict = entry;
+        Map<COSName, PDAppearanceStream> map = new HashMap<>();
 
         for (COSName name : dict.keySet())
         {
-            COSBase value = dict.getDictionaryObject(name);
-
+            COSStream stream = dict.getCOSStream(name);
             // the file from PDFBOX-1599 contains /null as its entry, so we skip non-stream entries
-            if (value instanceof COSStream)
+            if (stream != null)
             {
-                map.put(name, new PDAppearanceStream((COSStream) value));
+                map.put(name, new PDAppearanceStream(stream));
             }
         }
-
-        return new COSDictionaryMap<COSName, PDAppearanceStream>(map, dict);
+        return new COSDictionaryMap<>(map, dict);
     }
 }

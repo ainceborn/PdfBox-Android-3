@@ -18,6 +18,7 @@ package com.ainceborn.pdfbox.pdmodel.interactive.form;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
 import com.ainceborn.pdfbox.cos.COSArray;
 import com.ainceborn.pdfbox.cos.COSBase;
@@ -224,12 +225,8 @@ public abstract class PDField implements COSObjectable
      */
     public PDFormFieldAdditionalActions getActions()
     {
-        COSDictionary aa = (COSDictionary) dictionary.getDictionaryObject(COSName.AA);
-        if (aa != null)
-        {
-            return new PDFormFieldAdditionalActions(aa);
-        }
-        return null;
+        COSDictionary aa = dictionary.getCOSDictionary(COSName.AA);
+        return aa != null ? new PDFormFieldAdditionalActions(aa) : null;
     }
 
     /**
@@ -260,7 +257,7 @@ public abstract class PDField implements COSObjectable
             }
             else if (fieldValue instanceof COSArray && this instanceof PDChoice)
             {
-                ((PDChoice) this).setValue(COSArrayList.convertCOSStringCOSArrayToList((COSArray) fieldValue));
+                ((PDChoice) this).setValue(((COSArray) fieldValue).toCOSStringStringList());
             }
             else
             {
@@ -336,7 +333,7 @@ public abstract class PDField implements COSObjectable
     PDField findKid(String[] name, int nameIndex)
     {
         PDField retval = null;
-        COSArray kids = (COSArray) dictionary.getDictionaryObject(COSName.KIDS);
+        COSArray kids = dictionary.getCOSArray(COSName.KIDS);
         if (kids != null)
         {
             for (int i = 0; retval == null && i < kids.size(); i++)
@@ -345,7 +342,7 @@ public abstract class PDField implements COSObjectable
                 if (name[nameIndex].equals(kidDictionary.getString(COSName.T)))
                 {
                     retval = PDField.fromDictionary(acroForm, kidDictionary,
-                        (PDNonTerminalField)this);
+                            (PDNonTerminalField)this);
                     if (retval != null && name.length > nameIndex + 1)
                     {
                         retval = retval.findKid(name, nameIndex + 1);
@@ -398,7 +395,7 @@ public abstract class PDField implements COSObjectable
         if (name.contains("."))
         {
             throw new IllegalArgumentException(
-                "A field partial name shall not contain a period character: " + name);
+                    "A field partial name shall not contain a period character: " + name);
         }
         dictionary.setString(COSName.T, name);
     }
@@ -478,6 +475,35 @@ public abstract class PDField implements COSObjectable
     public String toString()
     {
         return getFullyQualifiedName() + "{type: " + getClass().getSimpleName() + " value: " +
-            getInheritableAttribute(COSName.V) + "}";
+                getInheritableAttribute(COSName.V) + "}";
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean equals (Object o)
+    {
+        if (o == this)
+        {
+            return true;
+        }
+
+        if (!(o instanceof PDField))
+        {
+            return false;
+        }
+
+        COSDictionary toBeCompared = ((PDField) o).getCOSObject();
+        return toBeCompared.equals(getCOSObject());
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(dictionary);
     }
 }
