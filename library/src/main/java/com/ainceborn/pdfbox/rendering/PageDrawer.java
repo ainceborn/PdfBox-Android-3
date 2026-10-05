@@ -1031,9 +1031,9 @@ public class PageDrawer extends PDFGraphicsStreamEngine
                 canvas.restore();
             }
             else {
-                var paint = getPaint(getGraphicsState().getNonStrokingColor());
+                Paint paint = getNonStrokingPaint();
 
-                var image = pdImage.getStencilImage(paint);
+                Bitmap image = pdImage.getStencilImage(paint);
 
                 // draw the image
                 drawBufferedImageV2(pdImage, image, at, canvas);
