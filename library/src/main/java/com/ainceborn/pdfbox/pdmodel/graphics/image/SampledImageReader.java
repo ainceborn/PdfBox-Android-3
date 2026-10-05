@@ -93,8 +93,16 @@ final class SampledImageReader
             for (int y = 0; y < height; y++)
             {
                 int x = 0;
-                int readLen = iis.read(buff);
-                for (int r = 0; r < rowLen && r < readLen; r++)
+                try
+                {
+                    iis.readFully(buff, 0, buff.length);
+                }
+                catch (IOException e)
+                {
+                    Log.w("PdfBox-Android", "premature EOF, image will be incomplete: " + e.getMessage());
+                    break;
+                }
+                for (int r = 0; r < rowLen; r++)
                 {
                     int byteValue = buff[r];
                     int mask = 128;
@@ -114,11 +122,6 @@ final class SampledImageReader
                             break;
                         }
                     }
-                }
-                if (readLen != rowLen)
-                {
-                    Log.w("PdfBox-Android", "premature EOF, image will be incomplete");
-                    break;
                 }
             }
         }
@@ -219,8 +222,9 @@ final class SampledImageReader
             if (isJpg)
             {
                 InputStream is = pdImage.createInputStream();
-                Bitmap bmp = BitmapFactory.decodeStream(is);
+                byte[] bytes = IOUtils.toByteArray(is);
                 IOUtils.closeQuietly(is);
+                Bitmap bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
                 if (bmp != null)
                 {
                     if (subsampling > 1 || (clipped.left > 0 || clipped.top > 0 || clipped.width() < pdImage.getWidth() || clipped.height() < pdImage.getHeight()))
@@ -301,7 +305,6 @@ final class SampledImageReader
                 scanHeight = clipped.height();
             }
             final byte[] output = buffer.array();
-            int idx = 0;
 
             // read stream byte per byte, invert pixel bits if necessary,
             // and then simply shift bits out to the left, detecting set bits via sign
@@ -310,12 +313,16 @@ final class SampledImageReader
             final int invert = decode[0] < decode[1] ? 0 : -1;
             final int endX = startx + scanWidth;
             final byte[] buff = new byte[stride];
+            final int rowBytes = raster.getRowBytes();
+            int dstY = 0;
             for (int y = 0; y < starty + scanHeight; y++)
             {
                 int read = (int) IOUtils.populateBuffer(iis, buff);
                 if (y >= starty && y % currentSubsampling == 0)
                 {
                     int x = startx;
+                    int dstX = 0;
+                    int rowOffset = dstY * rowBytes;
                     for (int r = x / 8; r < stride && r < read; r++)
                     {
                         int value = (buff[r] ^ invert) << (24 + (x & 7));
@@ -323,15 +330,16 @@ final class SampledImageReader
                         {
                             if (nosubsampling || x % currentSubsampling == 0)
                             {
-                                if (value < 0)
+                                if (value < 0 && dstX < width && rowOffset + dstX < output.length)
                                 {
-                                    output[idx] = (byte) 255;
+                                    output[rowOffset + dstX] = (byte) 255;
                                 }
-                                idx++;
+                                dstX++;
                             }
                             value <<= 1;
                         }
                     }
+                    dstY++;
                 }
                 if (read != stride)
                 {

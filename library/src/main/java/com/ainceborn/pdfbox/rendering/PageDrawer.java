@@ -19,6 +19,7 @@ package com.ainceborn.pdfbox.rendering;
 import android.graphics.Bitmap;
 import android.graphics.BitmapShader;
 import android.graphics.Canvas;
+import android.graphics.Color;
 import android.graphics.DashPathEffect;
 import android.graphics.Paint;
 import android.graphics.Path;
@@ -317,32 +318,62 @@ public class PageDrawer extends PDFGraphicsStreamEngine
     // TODO: alpha?
 
     protected Paint getPaint(PDColor color) throws IOException {
+        PDGraphicsState state = getGraphicsState();
+        float alpha = state != null ? (float) state.getAlphaConstant() : 1.0f;
+        return getPaint(color, alpha);
+    }
+
+    protected final Paint getStrokingPaint() throws IOException
+    {
+        PDGraphicsState graphicsState = getGraphicsState();
+        if (graphicsState == null)
+        {
+            return getPaint(new PDColor(new float[]{0}, PDDeviceGray.INSTANCE));
+        }
+        float alpha = (float) graphicsState.getAlphaConstant();
+        PDColor color = graphicsState.getStrokingColor();
+        return getPaint(color, alpha);
+    }
+
+    protected final Paint getNonStrokingPaint() throws IOException
+    {
+        PDGraphicsState graphicsState = getGraphicsState();
+        if (graphicsState == null)
+        {
+            return getPaint(new PDColor(new float[]{0}, PDDeviceGray.INSTANCE));
+        }
+        float alpha = (float) graphicsState.getNonStrokeAlphaConstant();
+        PDColor color = graphicsState.getNonStrokingColor();
+        return getPaint(color, alpha);
+    }
+
+    protected Paint getPaint(PDColor color, float alpha) throws IOException {
         PDColorSpace colorSpace = color.getColorSpace();
 
         PDGraphicsState state = getGraphicsState();
 
         if (colorSpace == null) { // PDFBOX-5782
-            android.graphics.Paint paint = new android.graphics.Paint();
-            paint.setColor(android.graphics.Color.TRANSPARENT);
+            Paint paint = new Paint();
+            paint.setColor(Color.TRANSPARENT);
             return paint;
         }
         else if (colorSpace instanceof PDSeparation &&
                 "None".equals(((PDSeparation) colorSpace).getColorantName())) {
             // PDFBOX-4900: "The special colorant name None shall not produce any visible output"
-            android.graphics.Paint paint = new android.graphics.Paint();
+            Paint paint = new Paint();
 
             if(state != null){
                 float lineWidth = transformWidth(state.getLineWidth());
                 paint.setStrokeWidth(lineWidth);
             }
 
-            paint.setColor(color.toARGB((float) getGraphicsState().getAlphaConstant()));
+            paint.setColor(color.toARGB(alpha));
             return paint;
         }
         else if (!(colorSpace instanceof PDPattern)) {
-            android.graphics.Paint paint = new android.graphics.Paint();
+            Paint paint = new Paint();
             paint.setAntiAlias(true);
-            paint.setColor(color.toARGB((float) getGraphicsState().getAlphaConstant()));
+            paint.setColor(color.toARGB(alpha));
 
             if(state != null){
                 float lineWidth = transformWidth(state.getLineWidth());
@@ -375,18 +406,18 @@ public class PageDrawer extends PDFGraphicsStreamEngine
                 PDShadingPattern shadingPattern = (PDShadingPattern) pattern;
                 PDShading shading = shadingPattern.getShading();
                 if (shading == null) {
-                    android.graphics.Paint paint = new android.graphics.Paint();
-                    paint.setColor(android.graphics.Color.TRANSPARENT);
+                    Paint paint = new Paint();
+                    paint.setColor(Color.TRANSPARENT);
                     return paint;
                 }
-                android.graphics.Paint paint = new android.graphics.Paint();
-                paint.setColor(android.graphics.Color.TRANSPARENT);
+                Paint paint = new Paint();
+                paint.setColor(Color.TRANSPARENT);
                 return paint;
             }
             else {
                 // fallback
-                android.graphics.Paint paint = new android.graphics.Paint();
-                paint.setColor(android.graphics.Color.TRANSPARENT);
+                Paint paint = new Paint();
+                paint.setColor(Color.TRANSPARENT);
                 return paint;
             }
         }
@@ -683,7 +714,7 @@ public class PageDrawer extends PDFGraphicsStreamEngine
 
             PDGraphicsState graphicsState = getGraphicsState();
 
-            var paint = getPaint(getGraphicsState().getStrokingColor());
+            var paint = getStrokingPaint();
             paint.setStyle(Paint.Style.STROKE);
             paint.setStrokeWidth(transformWidth(graphicsState.getLineWidth()));
             setClip();
@@ -699,7 +730,7 @@ public class PageDrawer extends PDFGraphicsStreamEngine
     {
         PDGraphicsState graphicsState = getGraphicsState();
 
-        var paint = getPaint(getGraphicsState().getNonStrokingColor());
+        var paint = getNonStrokingPaint();
         paint.setStyle(Paint.Style.STROKE);
         paint.setStrokeWidth(transformWidth(graphicsState.getLineWidth()));
         setClip();
@@ -1038,11 +1069,10 @@ public class PageDrawer extends PDFGraphicsStreamEngine
 
     private void drawBufferedImageV2(PDImage pdImage, Bitmap image, AffineTransform at, Canvas canvas) throws IOException
     {
-
-        AffineTransform originalTransform = new AffineTransform(getGraphicsState().getCurrentTransformationMatrix().createAffineTransform());
-        AffineTransform imageTransform = new AffineTransform(at);
         int width = image.getWidth();
         int height = image.getHeight();
+
+        AffineTransform imageTransform = new AffineTransform(at);
         imageTransform.scale(1.0 / width, -1.0 / height);
         imageTransform.translate(0, -height);
 
@@ -1067,14 +1097,9 @@ public class PageDrawer extends PDFGraphicsStreamEngine
             Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
             paint.setShader(shader);
 
-
             canvas.save();
-
-            android.graphics.Matrix matrix = imageTransform.toMatrix();
-            canvas.concat(matrix);
-
+            canvas.concat(imageTransform.toMatrix());
             canvas.drawRect(rectangle, paint);
-
             canvas.restore();
         }
         else
@@ -1085,69 +1110,16 @@ public class PageDrawer extends PDFGraphicsStreamEngine
                 image = applyTransferFunction(image, transfer);
             }
 
-            // PDFBOX-4516, PDFBOX-4527, PDFBOX-4815, PDFBOX-4886, PDFBOX-4863:
-            // graphics.drawImage() has terrible quality when scaling down, even when
-            // RenderingHints.VALUE_INTERPOLATION_BICUBIC, VALUE_ALPHA_INTERPOLATION_QUALITY,
-            // VALUE_COLOR_RENDER_QUALITY and VALUE_RENDER_QUALITY are all set.
-            // A workaround is to get a pre-scaled image with Image.getScaledInstance()
-            // and then draw that one. To reduce differences in testing
-            // (partly because the method needs integer parameters), only smaller scalings
-            // will trigger the workaround. Because of the slowness we only do it if the user
-            // expects quality rendering and interpolation.
-            Matrix imageTransformMatrix = new Matrix(imageTransform);
-            Matrix graphicsTransformMatrix = new Matrix(originalTransform);
-            float scaleX = Math.abs(imageTransformMatrix.getScalingFactorX() * graphicsTransformMatrix.getScalingFactorX());
-            float scaleY = Math.abs(imageTransformMatrix.getScalingFactorY() * graphicsTransformMatrix.getScalingFactorY());
+            Paint paint = new Paint(Paint.FILTER_BITMAP_FLAG);
+            paint.setAntiAlias(true);
 
-            if (scaleX < imageDownscalingOptimizationThreshold || scaleY < imageDownscalingOptimizationThreshold)
-            {
-                int w = Math.round(image.getWidth() * scaleX);
-                int h = Math.round(image.getHeight() * scaleY);
-                if (w < 1 || h < 1)
-                {
-                    canvas.drawBitmap(image, imageTransform.toMatrix(), null);
-                    return;
-                }
-                Bitmap imageToDraw =Bitmap.createScaledBitmap(
-                        image,
-                        w,
-                        h,
-                        true);
-                // remove the scale (extracted from w and h, to have it from the rounded values
-                // hoping to reverse the rounding: without this, we get an horizontal line
-                // when rendering PDFJS-8860-Pattern-Size1.pdf at 100% )
-                imageTransform.scale(1f / w * image.getWidth(), 1f / h * image.getHeight());
-                imageTransform.preConcatenate(originalTransform);
-
-                canvas.save();
-
-                canvas.setMatrix(new android.graphics.Matrix());
-
-                Paint paint = new Paint(Paint.FILTER_BITMAP_FLAG);
-                paint.setAntiAlias(true);
-
-                canvas.drawBitmap(
-                        imageToDraw,
-                        imageTransform.toMatrix(),
-                        paint);
-
-                canvas.restore();
-            }
-            else
-            {
-                Paint paint = new Paint(Paint.FILTER_BITMAP_FLAG);
-                paint.setAntiAlias(true);
-
-                canvas.save();
-
-                canvas.drawBitmap(
-                        image,
-                        imageTransform.toMatrix(),
-                        paint
-                );
-
-                canvas.restore();
-            }
+            canvas.save();
+            canvas.drawBitmap(
+                    image,
+                    imageTransform.toMatrix(),
+                    paint
+            );
+            canvas.restore();
         }
     }
 
