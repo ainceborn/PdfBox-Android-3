@@ -851,6 +851,11 @@ public class PageDrawer extends PDFGraphicsStreamEngine
                 bim = pdImage.getImage();
             }
 
+            if (bim == null)
+            {
+                return;
+            }
+
             boolean isScaledUp =
                     bim.getWidth() <= Math.abs(Math.round(ctm.getScalingFactorX() * xformScalingFactorX)) ||
                             bim.getHeight() <= Math.abs(Math.round(ctm.getScalingFactorY() * xformScalingFactorY));
@@ -1005,16 +1010,21 @@ public class PageDrawer extends PDFGraphicsStreamEngine
         }
         else
         {
+            Bitmap bim;
             if (subsamplingAllowed)
             {
                 int subsampling = getSubsampling(pdImage, at);
                 // draw the subsampled image
-                drawBitmap(pdImage.getImage(null, subsampling), at);
+                bim = pdImage.getImage(null, subsampling);
             }
             else
             {
                 // subsampling not allowed, draw the image
-                drawBitmap(pdImage.getImage(), at);
+                bim = pdImage.getImage();
+            }
+            if (bim != null)
+            {
+                drawBufferedImageV2(pdImage, bim, at, canvas);
             }
         }
 
@@ -1171,32 +1181,6 @@ public class PageDrawer extends PDFGraphicsStreamEngine
             subsampling = Math.min(pdImage.getWidth(), pdImage.getHeight());
         }
         return subsampling;
-    }
-
-    private void drawBitmap(Bitmap image, AffineTransform at) throws IOException
-    {
-        AffineTransform imageTransform = new AffineTransform(at);
-        int width = image.getWidth();
-        int height = image.getHeight();
-        imageTransform.scale(1.0 / width, -1.0 / height);
-        imageTransform.translate(0, -height);
-
-        PDSoftMask softMask = getGraphicsState().getSoftMask();
-        if( softMask != null )
-        {
-            RectF rectangle = new RectF(0, 0, width, height);
-//            Paint awtPaint; TODO: PdfBox-Android
-        }
-        else
-        {
-            COSBase transfer = getGraphicsState().getTransfer();
-            if (transfer instanceof COSArray || transfer instanceof COSDictionary)
-            {
-                image = applyTransferFunction(image, transfer);
-            }
-
-            canvas.drawBitmap(image, imageTransform.toMatrix(), paint);
-        }
     }
 
     private Bitmap applyTransferFunction(Bitmap image, COSBase transfer) throws IOException

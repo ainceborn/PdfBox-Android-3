@@ -51,18 +51,6 @@ final class DCTFilter extends Filter
         return decode(encoded, decoded, parameters, index, DecodeOptions.DEFAULT);
     }
 
-//    private Integer getAdobeTransform(IIOMetadata metadata) TODO: PdfBox-Android
-
-//    private int getAdobeTransformByBruteForce(ImageInputStream iis) throws IOException TODO: PdfBox-Android
-
-//    private WritableRaster fromYCCKtoCMYK(Raster raster) TODO: PdfBox-Android
-
-//    private WritableRaster fromYCbCrtoCMYK(Raster raster) TODO: PdfBox-Android
-
-//    private WritableRaster fromBGRtoRGB(Raster raster) TODO: PdfBox-Android
-
-//    private String getNumChannels(ImageReader reader) TODO: PdfBox-Android
-
     // clamps value to 0-255 range
     private int clamp(float value)
     {

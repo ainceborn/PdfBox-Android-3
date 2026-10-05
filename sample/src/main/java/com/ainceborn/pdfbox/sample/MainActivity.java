@@ -161,7 +161,7 @@ public class MainActivity extends Activity {
         // Render the page and save it to an image file
         try {
             // Load in an already created PDF
-            PDDocument document = Loader.loadPDF(assetManager.open("FormTest.pdf"));
+            PDDocument document = Loader.loadPDF(assetManager.open("D2000 20Inch Closure DRWG.pdf"));
             // Create a renderer for the document
             PDFRenderer renderer = new PDFRenderer(document);
             // Render the image to an RGB Bitmap

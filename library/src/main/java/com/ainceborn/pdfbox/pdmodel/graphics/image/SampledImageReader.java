@@ -28,12 +28,12 @@ import android.util.Log;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.util.Arrays;
 
 import com.ainceborn.harmony.javax.imageio.stream.ImageInputStream;
 import com.ainceborn.harmony.javax.imageio.stream.MemoryCacheImageInputStream;
 import com.ainceborn.pdfbox.cos.COSArray;
+import com.ainceborn.pdfbox.cos.COSName;
 import com.ainceborn.pdfbox.cos.COSNumber;
 import com.ainceborn.pdfbox.filter.DecodeOptions;
 import com.ainceborn.pdfbox.io.IOUtils;
@@ -214,9 +214,34 @@ final class SampledImageReader
 
             boolean hasMask = colorKey != null;
 
-            if (pdImage.getSuffix() != null && pdImage.getSuffix().equals("jpg") && subsampling == 1)
+            boolean isJpg = pdImage.getSuffix() != null && (pdImage.getSuffix().equals("jpg") || pdImage.getSuffix().equals("jpeg"));
+
+            if (isJpg)
             {
-                return BitmapFactory.decodeStream(pdImage.createInputStream());
+                InputStream is = pdImage.createInputStream();
+                Bitmap bmp = BitmapFactory.decodeStream(is);
+                IOUtils.closeQuietly(is);
+                if (bmp != null)
+                {
+                    if (subsampling > 1 || (clipped.left > 0 || clipped.top > 0 || clipped.width() < pdImage.getWidth() || clipped.height() < pdImage.getHeight()))
+                    {
+                        int x = Math.max(0, clipped.left);
+                        int y = Math.max(0, clipped.top);
+                        int w = Math.min(clipped.width(), bmp.getWidth() - x);
+                        int h = Math.min(clipped.height(), bmp.getHeight() - y);
+                        if (w > 0 && h > 0)
+                        {
+                            bmp = Bitmap.createBitmap(bmp, x, y, w, h);
+                        }
+                        int scaledW = Math.max(1, bmp.getWidth() / subsampling);
+                        int scaledH = Math.max(1, bmp.getHeight() / subsampling);
+                        if (scaledW != bmp.getWidth() || scaledH != bmp.getHeight())
+                        {
+                            bmp = Bitmap.createScaledBitmap(bmp, scaledW, scaledH, true);
+                        }
+                    }
+                    return bmp;
+                }
             }
             if (bitsPerComponent == 8 && colorKey == null && Arrays.equals(decode, defaultDecode)) {
                 // convert image, faster path for non-decoded, non-colormasked 8-bit images
@@ -460,12 +485,14 @@ final class SampledImageReader
             int[] pixels = new int[width * height];
             int idx = 0;
             for (int i = 0; i < width * height; i++) {
-                int r, g, b;
-                r = bank[idx++] & 0xFF;
-                g = numComponents > 1 ? bank[idx++] & 0xFF : r;
-                b = numComponents > 2 ? bank[idx++] & 0xFF : r;
-                if (numComponents > 3) idx += (numComponents - 3);
-                pixels[i] = Color.rgb(r, g, b);
+                int c = bank[idx++] & 0xFF;
+                int m = numComponents > 1 ? bank[idx++] & 0xFF : c;
+                int y = numComponents > 2 ? bank[idx++] & 0xFF : c;
+                int k = numComponents > 3 ? bank[idx++] & 0xFF : 255;
+                if (numComponents > 4) {
+                    idx += (numComponents - 4);
+                }
+                pixels[i] = Color.argb(k, c, m, y);
             }
             bitmap.setPixels(pixels, 0, width, 0, 0, width, height);
         }
@@ -596,11 +623,11 @@ final class SampledImageReader
         Bitmap raster = Bitmap.createBitmap(
                 width,
                 height,
-                Bitmap.Config.ALPHA_8
+                numComponents == 1 ? Bitmap.Config.ALPHA_8 : Bitmap.Config.ARGB_8888
         );
 
-        ByteBuffer rasterBuffer = ByteBuffer.allocateDirect(width * height * numComponents);
-        rasterBuffer.order(ByteOrder.BIG_ENDIAN);
+        int[] pixels = new int[width * height];
+        byte[] alphaBytes = numComponents == 1 ? new byte[width * height] : null;
 
         /* ------------------------------------------------------------
          * 2. ColorKey mask
@@ -677,8 +704,15 @@ final class SampledImageReader
                         int dstX = (x - startx) / currentSubsampling;
                         int dstY = (y - starty) / currentSubsampling;
 
-                        for (int c = 0; c < numComponents; c++) {
-                            rasterBuffer.put(src[c]);
+                        int c0 = numComponents > 0 ? src[0] & 0xFF : 0;
+                        int c1 = numComponents > 1 ? src[1] & 0xFF : c0;
+                        int c2 = numComponents > 2 ? src[2] & 0xFF : c0;
+                        int c3 = numComponents > 3 ? src[3] & 0xFF : 255;
+
+                        if (numComponents == 1) {
+                            alphaBytes[dstY * width + dstX] = (byte) c0;
+                        } else {
+                            pixels[dstY * width + dstX] = Color.argb(c3, c0, c1, c2);
                         }
 
                         if (colorKeyMask != null) {
@@ -691,8 +725,11 @@ final class SampledImageReader
             }
         }
 
-        rasterBuffer.rewind();
-        raster.copyPixelsFromBuffer(rasterBuffer);
+        if (numComponents == 1) {
+            raster.copyPixelsFromBuffer(ByteBuffer.wrap(alphaBytes));
+        } else {
+            raster.setPixels(pixels, 0, width, 0, 0, width, height);
+        }
 
         /* ------------------------------------------------------------
          * 3. to RGB
