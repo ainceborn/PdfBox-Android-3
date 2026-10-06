@@ -1,6 +1,7 @@
 package com.ainceborn.pdfbox.sample;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.res.AssetManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -48,6 +49,30 @@ import com.ainceborn.pdfbox.android.PDFBoxResourceLoader;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 
 public class MainActivity extends Activity {
+
+    enum PdfAsset {
+        FORM_TEST("FormTest.pdf"),
+        HELLO("Hello.pdf"),
+        MANUAL("manual.pdf"),
+        MANUAL_2("manual_2.pdf"),
+        PDF_BEFORE_APP_CHANGE("PDF before app change.pdf"),
+        WCP_FORM_BEFORE_CHANGE("WCPForm_Before change.pdf"),
+        BOARDING_PASS("boarding-pass.pdf"),
+        TICKET_WITH_REGISTRATION("ticket_with_registration.pdf"),
+        D2000_CLOSURE_DRWG("D2000 20Inch Closure DRWG.pdf"),
+        IMMIGRATION_ACT("ImmigrationAct.pdf"),
+        PDF_TEST("pdf-test.pdf"),
+        PREVIEW("preview.pdf"),
+        DOC_6907202("6907202-2.pdf"),
+        DOC_105_A4("105-1.-A4-.-AC8Z11MS.pdf");
+
+        final String fileName;
+
+        PdfAsset(String fileName) {
+            this.fileName = fileName;
+        }
+    }
+
     File root;
     AssetManager assetManager;
     Bitmap pageImage;
@@ -158,22 +183,26 @@ public class MainActivity extends Activity {
      * Loads an existing PDF and renders it to a Bitmap
      */
     public void renderFile(View v) {
-        // Render the page and save it to an image file
+        PdfAsset[] assets = PdfAsset.values();
+        String[] names = new String[assets.length];
+        for (int i = 0; i < assets.length; i++) {
+            names[i] = assets[i].fileName;
+        }
+
+        new android.app.AlertDialog.Builder(this)
+                .setTitle("Select PDF to render")
+                .setItems(names, (dialog, which) -> openAndRenderPdf(assets[which]))
+                .show();
+    }
+
+    private void openAndRenderPdf(PdfAsset asset) {
         try {
-            // Load in an already created PDF
-            PDDocument document = Loader.loadPDF(assetManager.open("FormTest.pdf"));
-            // Create a renderer for the document
+            PDDocument document = Loader.loadPDF(assetManager.open(asset.fileName));
             PDFRenderer renderer = new PDFRenderer(document);
-            // Render the image to an RGB Bitmap
-            final var pageIndex = new AtomicInteger(0);
+            final AtomicInteger pageIndex = new AtomicInteger(0);
 
             pageImage = renderer.renderImage(pageIndex.getAndIncrement(), 1, ImageType.ARGB);
-
-            // Save the render result to an image
-            //tv.setText("Successfully rendered image to " + path);
-            // Optional: display the render result on screen
             displayRenderedImage();
-
 
             ImageView imageView = (ImageView) findViewById(R.id.renderedImageView);
             imageView.setOnClickListener(view -> {
@@ -194,9 +223,7 @@ public class MainActivity extends Activity {
                 displayRenderedImage();
                 return true;
             });
-        }
-        catch (IOException e)
-        {
+        } catch (IOException e) {
             Log.e("PdfBox-Android-Sample", "Exception thrown while rendering file", e);
         }
     }
