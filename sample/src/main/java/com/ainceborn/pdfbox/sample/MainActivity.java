@@ -1,6 +1,7 @@
 package com.ainceborn.pdfbox.sample;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.res.AssetManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -9,6 +10,7 @@ import android.util.Log;
 import android.view.Menu;
 import android.view.View;
 import android.widget.ImageView;
+import android.widget.ProgressBar;
 import android.widget.TextView;
 
 import java.io.File;
@@ -48,10 +50,32 @@ import com.ainceborn.pdfbox.android.PDFBoxResourceLoader;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 
 public class MainActivity extends Activity {
+
+    enum PdfAsset {
+        FORM_TEST("FormTest.pdf"),
+        HELLO("Hello.pdf"),
+        MANUAL("manual.pdf"),
+        MANUAL_2("manual_2.pdf"),
+        WCP_FORM_BEFORE_CHANGE("WCPForm_Before change.pdf"),
+        D2000_CLOSURE_DRWG("D2000 20Inch Closure DRWG.pdf"),
+        IMMIGRATION_ACT("ImmigrationAct.pdf"),
+        PDF_TEST("pdf-test.pdf"),
+        PREVIEW("preview.pdf"),
+        DOC_105_A4("105-1.-A4-.-AC8Z11MS.pdf");
+
+        final String fileName;
+
+        PdfAsset(String fileName) {
+            this.fileName = fileName;
+        }
+    }
+
     File root;
     AssetManager assetManager;
     Bitmap pageImage;
     TextView tv;
+    ProgressBar progressBar;
+    volatile boolean isRendering = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -84,6 +108,7 @@ public class MainActivity extends Activity {
         root = getApplicationContext().getCacheDir();
         assetManager = getAssets();
         tv = (TextView) findViewById(R.id.statusTextView);
+        progressBar = (ProgressBar) findViewById(R.id.renderProgressBar);
     }
 
     /**
@@ -158,47 +183,73 @@ public class MainActivity extends Activity {
      * Loads an existing PDF and renders it to a Bitmap
      */
     public void renderFile(View v) {
-        // Render the page and save it to an image file
+        if (isRendering) return;
+
+        PdfAsset[] assets = PdfAsset.values();
+        String[] names = new String[assets.length];
+        for (int i = 0; i < assets.length; i++) {
+            names[i] = assets[i].fileName;
+        }
+
+        new AlertDialog.Builder(this)
+                .setTitle("Select PDF to render")
+                .setItems(names, (dialog, which) -> openAndRenderPdf(assets[which]))
+                .show();
+    }
+
+    private void openAndRenderPdf(PdfAsset asset) {
         try {
-            // Load in an already created PDF
-            PDDocument document = Loader.loadPDF(assetManager.open("FormTest.pdf"));
-            // Create a renderer for the document
+            PDDocument document = Loader.loadPDF(assetManager.open(asset.fileName));
             PDFRenderer renderer = new PDFRenderer(document);
-            // Render the image to an RGB Bitmap
-            final var pageIndex = new AtomicInteger(0);
-
-            pageImage = renderer.renderImage(pageIndex.getAndIncrement(), 1, ImageType.ARGB);
-
-            // Save the render result to an image
-            //tv.setText("Successfully rendered image to " + path);
-            // Optional: display the render result on screen
-            displayRenderedImage();
-
+            AtomicInteger pageIndex = new AtomicInteger(0);
 
             ImageView imageView = (ImageView) findViewById(R.id.renderedImageView);
-            imageView.setOnClickListener(view -> {
-                try {
-                    pageImage = renderer.renderImage(pageIndex.getAndIncrement(), 1, ImageType.ARGB);
-                } catch (Throwable e) {
-                    Log.e("PdfBox-Android-Sample", "Exception thrown while rendering file", e);
-                }
-                displayRenderedImage();
-            });
+            imageView.setOnClickListener(view -> renderPageInBackground(renderer, pageIndex, pageIndex.getAndIncrement()));
             imageView.setOnLongClickListener(view -> {
-                try {
-                    pageImage = renderer.renderImage(pageIndex.decrementAndGet(), 1, ImageType.ARGB);
-                } catch (Throwable e) {
-                    Log.e("PdfBox-Android-Sample", "Exception thrown while rendering file", e);
-                    return false;
-                }
-                displayRenderedImage();
+                renderPageInBackground(renderer, pageIndex, pageIndex.decrementAndGet());
                 return true;
             });
+
+            renderPageInBackground(renderer, pageIndex, pageIndex.getAndIncrement());
+        } catch (IOException e) {
+            Log.e("PdfBox-Android-Sample", "Exception thrown while opening file", e);
         }
-        catch (IOException e)
-        {
-            Log.e("PdfBox-Android-Sample", "Exception thrown while rendering file", e);
-        }
+    }
+
+    private void renderPageInBackground(PDFRenderer renderer, AtomicInteger pageIndex, int page) {
+        if (isRendering) return;
+        isRendering = true;
+        setRenderingUiState(true);
+
+        new Thread(() -> {
+            Bitmap result = null;
+            try {
+                result = renderer.renderImage(page, 1, ImageType.ARGB);
+            } catch (Throwable e) {
+                Log.e("PdfBox-Android-Sample", "Exception thrown while rendering page " + page, e);
+                // revert page index on error so next tap retries the same page
+                pageIndex.set(page);
+            }
+            final Bitmap bitmap = result;
+            runOnUiThread(() -> {
+                isRendering = false;
+                setRenderingUiState(false);
+                if (bitmap != null) {
+                    pageImage = bitmap;
+                    ImageView imageView = (ImageView) findViewById(R.id.renderedImageView);
+                    imageView.setImageBitmap(pageImage);
+                }
+            });
+        }).start();
+    }
+
+    private void setRenderingUiState(boolean rendering) {
+        progressBar.setVisibility(rendering ? View.VISIBLE : View.GONE);
+        findViewById(R.id.buttonRender).setEnabled(!rendering);
+        findViewById(R.id.buttonCreate).setEnabled(!rendering);
+        findViewById(R.id.buttonFillForm).setEnabled(!rendering);
+        findViewById(R.id.buttonStripText).setEnabled(!rendering);
+        findViewById(R.id.buttonCreateEncrypted).setEnabled(!rendering);
     }
 
     /**
@@ -328,20 +379,4 @@ public class MainActivity extends Activity {
         }
     }
 
-    /**
-     * Helper method for drawing the result of renderFile() on screen
-     */
-    private void displayRenderedImage() {
-        new Thread() {
-            public void run() {
-                runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        ImageView imageView = (ImageView) findViewById(R.id.renderedImageView);
-                        imageView.setImageBitmap(pageImage);
-                    }
-                });
-            }
-        }.start();
-    }
 }

@@ -46,3 +46,8 @@ build/
 
 # OS X
 .DS_Store
+
+# AI context files
+CLASSES.md
+CONTEXT.md
+UPSTREAM_PDFBOX.md

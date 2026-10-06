@@ -20,7 +20,7 @@ repositories {
 }
 ...
 dependencies {
-   implementation 'com.github.ainceborn:PdfBox-Android-3:3.0.3'
+   implementation 'com.github.ainceborn:PdfBox-Android-3:3.0.4'
 }
 ```
 

@@ -90,7 +90,7 @@ final class TilingPaint {
                 Shader.TileMode.REPEAT
         );
 
-        android.graphics.Matrix m = buildPatternMatrix(drawer, pattern, xform);
+        android.graphics.Matrix m = buildPatternMatrix(drawer, xform);
 
         shader.setLocalMatrix(m);
 
@@ -100,18 +100,19 @@ final class TilingPaint {
     }
 
     private android.graphics.Matrix buildPatternMatrix(PageDrawer drawer,
-                                      PDTilingPattern pattern,
                                       AffineTransform xform
     ) {
+        AffineTransform patternNoScale = new AffineTransform(patternMatrix.createAffineTransform());
+        float scaleX = patternMatrix.getScalingFactorX();
+        float scaleY = patternMatrix.getScalingFactorY();
+        if (scaleX != 0 && scaleY != 0)
+        {
+            patternNoScale.scale(1f / scaleX, 1f / scaleY);
+        }
 
-        // PDF base transform
         android.graphics.Matrix m = new android.graphics.Matrix();
-
-        // drawer initial (page → device)
         m.set(drawer.getInitialMatrix().createAffineTransform().toMatrix());
-
-        // pattern space transform
-        m.preConcat(pattern.getMatrix().createAffineTransform().toMatrix());
+        m.preConcat(patternNoScale.toMatrix());
 
         // external transform (content transform)
         if (xform != null) {
