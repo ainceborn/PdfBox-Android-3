@@ -612,10 +612,8 @@ public class PageDrawer extends PDFGraphicsStreamEngine
 //    protected final Paint getNonStrokingPaint() throws IOException TODO: PdfBox-Android
 
     // set stroke based on the current CTM and the current stroke
-    private void setStroke()
+    private void applyStrokeStyle(Paint target, PDGraphicsState state)
     {
-        PDGraphicsState state = getGraphicsState();
-
         // apply the CTM
         float lineWidth = transformWidth(state.getLineWidth());
 
@@ -627,7 +625,6 @@ public class PageDrawer extends PDFGraphicsStreamEngine
 
         PDLineDashPattern dashPattern = state.getLineDashPattern();
         // PDFBOX-5168: show an all-zero dash array line invisible like Adobe does
-        // must do it here because getDashArray() sets minimum width because of JVM bugs
         float[] dashArray = dashPattern.getDashArray();
         if (isAllZeroDash(dashArray))
         {
@@ -637,20 +634,25 @@ public class PageDrawer extends PDFGraphicsStreamEngine
         dashArray = getDashArray(dashPattern);
         phaseStart = transformWidth(phaseStart);
 
-        paint.setStrokeWidth(lineWidth);
-        paint.setStrokeCap(state.getLineCap());
-        paint.setStrokeJoin(state.getLineJoin());
+        target.setStrokeWidth(lineWidth);
+        target.setStrokeCap(state.getLineCap());
+        target.setStrokeJoin(state.getLineJoin());
         float miterLimit = state.getMiterLimit();
         if (miterLimit < 1)
         {
             Log.w("PdfBox-Android", "Miter limit must be >= 1, value " + miterLimit + " is ignored");
             miterLimit = 10;
         }
-        paint.setStrokeMiter(miterLimit);
+        target.setStrokeMiter(miterLimit);
         if (dashArray != null)
         {
-            paint.setPathEffect(new DashPathEffect(dashArray, phaseStart));
+            target.setPathEffect(new DashPathEffect(dashArray, phaseStart));
         }
+    }
+
+    private void setStroke()
+    {
+        applyStrokeStyle(paint, getGraphicsState());
     }
 
     private boolean isAllZeroDash(float[] dashArray)
@@ -710,13 +712,11 @@ public class PageDrawer extends PDFGraphicsStreamEngine
     {
         if (isContentRendered())
         {
-            setStroke();
-
             PDGraphicsState graphicsState = getGraphicsState();
 
-            var paint = getStrokingPaint();
+            Paint paint = getStrokingPaint();
             paint.setStyle(Paint.Style.STROKE);
-            paint.setStrokeWidth(transformWidth(graphicsState.getLineWidth()));
+            applyStrokeStyle(paint, graphicsState);
             setClip();
 
             canvas.drawPath(linePath, paint);
@@ -728,11 +728,6 @@ public class PageDrawer extends PDFGraphicsStreamEngine
     @Override
     public void fillPath(Path.FillType windingRule) throws IOException
     {
-        PDGraphicsState graphicsState = getGraphicsState();
-
-        var paint = getNonStrokingPaint();
-        paint.setStyle(Paint.Style.STROKE);
-        paint.setStrokeWidth(transformWidth(graphicsState.getLineWidth()));
         setClip();
         linePath.setFillType(windingRule);
 
@@ -744,14 +739,15 @@ public class PageDrawer extends PDFGraphicsStreamEngine
         linePath.computeBounds(bounds, true);
         boolean noAntiAlias = isRectangular(linePath) && bounds.width() > 1 &&
             bounds.height() > 1;
-        if (noAntiAlias)
-        {
-            paint.setAntiAlias(false);
-        }
 
         if (isContentRendered())
         {
+            Paint paint = getNonStrokingPaint();
             paint.setStyle(Paint.Style.FILL);
+            if (noAntiAlias)
+            {
+                paint.setAntiAlias(false);
+            }
             canvas.drawPath(linePath, paint);
         }
 

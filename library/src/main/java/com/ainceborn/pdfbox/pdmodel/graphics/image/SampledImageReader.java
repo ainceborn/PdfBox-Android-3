@@ -38,6 +38,7 @@ import com.ainceborn.pdfbox.cos.COSNumber;
 import com.ainceborn.pdfbox.filter.DecodeOptions;
 import com.ainceborn.pdfbox.io.IOUtils;
 import com.ainceborn.pdfbox.pdmodel.graphics.color.PDColorSpace;
+import com.ainceborn.pdfbox.pdmodel.graphics.color.PDIndexed;
 
 /**
  * Reads a sampled image from a PDF file.
@@ -255,7 +256,7 @@ final class SampledImageReader
             //Log.e("PdfBox-Android", "Trying to create other-bit image not supported");
             return fromAny(pdImage, colorKey, clipped, subsampling, width, height);
         }
-        catch (NegativeArraySizeException ex)
+        catch (NegativeArraySizeException | IllegalArgumentException ex)
         {
             throw new IOException(ex);
         }
@@ -565,7 +566,7 @@ final class SampledImageReader
         if (cosDecode != null)
         {
             int numberOfComponents = pdImage.getColorSpace().getNumberOfComponents();
-            if (cosDecode.size() != numberOfComponents * 2)
+            if (cosDecode.size() < numberOfComponents * 2)
             {
                 if (pdImage.isStencil() && cosDecode.size() >= 2
                     && cosDecode.get(0) instanceof COSNumber
@@ -675,6 +676,7 @@ final class SampledImageReader
             }
 
             float sampleMax = (float) Math.pow(2, bitsPerComponent) - 1f;
+            final boolean isIndexed = colorSpace instanceof PDIndexed;
 
             int padding = 0;
             int bitsPerRow = inputWidth * numComponents * bitsPerComponent;
@@ -702,7 +704,20 @@ final class SampledImageReader
 
                         float output = dMin + value * ((dMax - dMin) / sampleMax);
 
-                        src[c] = (byte) Math.round(output);
+                        if (isIndexed)
+                        {
+                            // indexed color spaces get the raw decoded value; the lookup table
+                            // needs to see the sample index, not a 0-255 scaled byte
+                            src[c] = (byte) Math.round(output);
+                        }
+                        else
+                        {
+                            // re-interpolate decoded value back to 0-255 byte range
+                            int outputByte = Math.round(
+                                    ((output - Math.min(dMin, dMax)) / Math.abs(dMax - dMin))
+                                            * 255f);
+                            src[c] = (byte) outputByte;
+                        }
                     }
 
                     if (x >= startx && y >= starty
