@@ -17,6 +17,7 @@
 package com.ainceborn.pdfbox.pdmodel.graphics.color;
 
 import android.graphics.Bitmap;
+import android.graphics.Color;
 
 import com.ainceborn.pdfbox.cos.COSName;
 
@@ -83,7 +84,33 @@ public class PDDeviceCMYK extends PDDeviceColorSpace
    @Override
    public Bitmap toRGBImage(Bitmap raster)
    {
-      return raster;
+      int width = raster.getWidth();
+      int height = raster.getHeight();
+      Bitmap rgbBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+      int[] pixels = new int[width * height];
+      raster.getPixels(pixels, 0, width, 0, 0, width, height);
+
+      for (int i = 0; i < pixels.length; i++) {
+         int p = pixels[i];
+         // C, M, Y, K are stored in R, G, B, A channels respectively
+         float c = Color.red(p) / 255f;
+         float m = Color.green(p) / 255f;
+         float y = Color.blue(p) / 255f;
+         float k = Color.alpha(p) / 255f;
+
+         float red = (1 - c) * (1 - k);
+         float green = (1 - m) * (1 - k);
+         float blue = (1 - y) * (1 - k);
+
+         int r = Math.round(red * 255f);
+         int g = Math.round(green * 255f);
+         int b = Math.round(blue * 255f);
+
+         pixels[i] = Color.rgb(r, g, b);
+      }
+
+      rgbBitmap.setPixels(pixels, 0, width, 0, 0, width, height);
+      return rgbBitmap;
    }
 }
 
