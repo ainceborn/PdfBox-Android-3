@@ -10,6 +10,7 @@ import android.util.Log;
 import android.view.Menu;
 import android.view.View;
 import android.widget.ImageView;
+import android.widget.ProgressBar;
 import android.widget.TextView;
 
 import java.io.File;
@@ -77,6 +78,8 @@ public class MainActivity extends Activity {
     AssetManager assetManager;
     Bitmap pageImage;
     TextView tv;
+    ProgressBar progressBar;
+    volatile boolean isRendering = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -109,6 +112,7 @@ public class MainActivity extends Activity {
         root = getApplicationContext().getCacheDir();
         assetManager = getAssets();
         tv = (TextView) findViewById(R.id.statusTextView);
+        progressBar = (ProgressBar) findViewById(R.id.renderProgressBar);
     }
 
     /**
@@ -183,13 +187,15 @@ public class MainActivity extends Activity {
      * Loads an existing PDF and renders it to a Bitmap
      */
     public void renderFile(View v) {
+        if (isRendering) return;
+
         PdfAsset[] assets = PdfAsset.values();
         String[] names = new String[assets.length];
         for (int i = 0; i < assets.length; i++) {
             names[i] = assets[i].fileName;
         }
 
-        new android.app.AlertDialog.Builder(this)
+        new AlertDialog.Builder(this)
                 .setTitle("Select PDF to render")
                 .setItems(names, (dialog, which) -> openAndRenderPdf(assets[which]))
                 .show();
@@ -199,33 +205,55 @@ public class MainActivity extends Activity {
         try {
             PDDocument document = Loader.loadPDF(assetManager.open(asset.fileName));
             PDFRenderer renderer = new PDFRenderer(document);
-            final AtomicInteger pageIndex = new AtomicInteger(0);
-
-            pageImage = renderer.renderImage(pageIndex.getAndIncrement(), 1, ImageType.ARGB);
-            displayRenderedImage();
+            AtomicInteger pageIndex = new AtomicInteger(0);
 
             ImageView imageView = (ImageView) findViewById(R.id.renderedImageView);
-            imageView.setOnClickListener(view -> {
-                try {
-                    pageImage = renderer.renderImage(pageIndex.getAndIncrement(), 1, ImageType.ARGB);
-                } catch (Throwable e) {
-                    Log.e("PdfBox-Android-Sample", "Exception thrown while rendering file", e);
-                }
-                displayRenderedImage();
-            });
+            imageView.setOnClickListener(view -> renderPageInBackground(renderer, pageIndex, pageIndex.getAndIncrement()));
             imageView.setOnLongClickListener(view -> {
-                try {
-                    pageImage = renderer.renderImage(pageIndex.decrementAndGet(), 1, ImageType.ARGB);
-                } catch (Throwable e) {
-                    Log.e("PdfBox-Android-Sample", "Exception thrown while rendering file", e);
-                    return false;
-                }
-                displayRenderedImage();
+                renderPageInBackground(renderer, pageIndex, pageIndex.decrementAndGet());
                 return true;
             });
+
+            renderPageInBackground(renderer, pageIndex, pageIndex.getAndIncrement());
         } catch (IOException e) {
-            Log.e("PdfBox-Android-Sample", "Exception thrown while rendering file", e);
+            Log.e("PdfBox-Android-Sample", "Exception thrown while opening file", e);
         }
+    }
+
+    private void renderPageInBackground(PDFRenderer renderer, AtomicInteger pageIndex, int page) {
+        if (isRendering) return;
+        isRendering = true;
+        setRenderingUiState(true);
+
+        new Thread(() -> {
+            Bitmap result = null;
+            try {
+                result = renderer.renderImage(page, 1, ImageType.ARGB);
+            } catch (Throwable e) {
+                Log.e("PdfBox-Android-Sample", "Exception thrown while rendering page " + page, e);
+                // revert page index on error so next tap retries the same page
+                pageIndex.set(page);
+            }
+            final Bitmap bitmap = result;
+            runOnUiThread(() -> {
+                isRendering = false;
+                setRenderingUiState(false);
+                if (bitmap != null) {
+                    pageImage = bitmap;
+                    ImageView imageView = (ImageView) findViewById(R.id.renderedImageView);
+                    imageView.setImageBitmap(pageImage);
+                }
+            });
+        }).start();
+    }
+
+    private void setRenderingUiState(boolean rendering) {
+        progressBar.setVisibility(rendering ? View.VISIBLE : View.GONE);
+        findViewById(R.id.buttonRender).setEnabled(!rendering);
+        findViewById(R.id.buttonCreate).setEnabled(!rendering);
+        findViewById(R.id.buttonFillForm).setEnabled(!rendering);
+        findViewById(R.id.buttonStripText).setEnabled(!rendering);
+        findViewById(R.id.buttonCreateEncrypted).setEnabled(!rendering);
     }
 
     /**
@@ -355,20 +383,4 @@ public class MainActivity extends Activity {
         }
     }
 
-    /**
-     * Helper method for drawing the result of renderFile() on screen
-     */
-    private void displayRenderedImage() {
-        new Thread() {
-            public void run() {
-                runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        ImageView imageView = (ImageView) findViewById(R.id.renderedImageView);
-                        imageView.setImageBitmap(pageImage);
-                    }
-                });
-            }
-        }.start();
-    }
 }
