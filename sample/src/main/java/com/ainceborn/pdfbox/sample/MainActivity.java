@@ -56,15 +56,11 @@ public class MainActivity extends Activity {
         HELLO("Hello.pdf"),
         MANUAL("manual.pdf"),
         MANUAL_2("manual_2.pdf"),
-        PDF_BEFORE_APP_CHANGE("PDF before app change.pdf"),
         WCP_FORM_BEFORE_CHANGE("WCPForm_Before change.pdf"),
-        BOARDING_PASS("boarding-pass.pdf"),
-        TICKET_WITH_REGISTRATION("ticket_with_registration.pdf"),
         D2000_CLOSURE_DRWG("D2000 20Inch Closure DRWG.pdf"),
         IMMIGRATION_ACT("ImmigrationAct.pdf"),
         PDF_TEST("pdf-test.pdf"),
         PREVIEW("preview.pdf"),
-        DOC_6907202("6907202-2.pdf"),
         DOC_105_A4("105-1.-A4-.-AC8Z11MS.pdf");
 
         final String fileName;
